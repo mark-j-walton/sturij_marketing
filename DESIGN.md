@@ -1,4 +1,4 @@
-STURIJ MARKETING — Brand Identity & Design System
+# STURIJ MARKETING — Brand Identity & Design System
 **Comprehensive guide for marketing integration & brand communication**
 
 ---
@@ -26,6 +26,23 @@ STURIJ MARKETING — Brand Identity & Design System
 - Wordmark "STURIJ" with icon
 - Primary mark for website hero, marketing materials, documents
 - Available in black and white (with transparent background)
+
+### Brand Assets (real files — use these, never redraw the mark)
+
+The logo files live in **`STURIJ_BRAND_ASSETS/`**. Always use the real file; never recreate,
+redraw or restyle the mark.
+
+**Naming key:**
+- `s-i-*` = **icon mark** only (the folded-hexagon "S")
+- `s-it-*` = **icon + text lockup** ("sturij")
+- `-b` / `-w` = black / white → black on light/paper, white on dark/navy
+- `s-<hex>` = the mark (small files) or lockup (large files) in that brand colourway —
+  e.g. `s-c8a46a` = gold icon · `s-1d2427` = near-black lockup · `s-f2eadb` = paper/cream lockup
+
+**Usage:**
+- Icon (`s-i-*`) → avatars, favicons, rail, tight spaces. Min 32px, never smaller.
+- Lockup (`s-it-*`) → headers, hero, documents.
+- On paper/light use black or navy; on navy/dark use white (`-w` / `s-f2eadb`).
 
 ### Colour Palette
 
@@ -289,7 +306,7 @@ STURIJ MARKETING — Brand Identity & Design System
 
 Hero lockup (920×256px) centered on gradient background:
 - Gradient: `linear-gradient(135deg, rgba(32,56,74,.95), rgba(139,94,44,.05))`
-- Background: Paper with workshop graph-paper pattern (see prototype)
+- Background: Paper with workshop graph-paper pattern (see `polly_debrief_form.html`)
 - Heading below: "AI-powered wardrobe visualization for tradespeople"
 - CTA: Primary button (navy)
 
@@ -324,10 +341,10 @@ Hero lockup (920×256px) centered on gradient background:
 
 For Claude Cowork Marketing System:
 
-- [ ] Logo assets stored as SVG + PNG (transparent)
-- [ ] Color palette added to brand kit (Figma/design tool)
+- [x] Logo assets committed as PNG (transparent) in `STURIJ_BRAND_ASSETS/`
+- [ ] Color palette + type applied consistently (match `polly_debrief_form.html`)
 - [ ] Typography settings: DM Sans (variable), DM Serif Display, IBM Plex Mono
-- [ ] Component library: Button, Input, Card, Chip, Modal specs
+- [ ] Component set: Button, Input, Card, Chip, Modal per §6
 - [ ] Email templates using navy header + kicker footer
 - [ ] Website hero template with gradient + logo
 - [ ] Social media templates (LinkedIn, Twitter, Instagram)
@@ -351,7 +368,7 @@ For Claude Cowork Marketing System:
 **DON'T:**
 - Use pure black (#000000) or pure white (#ffffff) — use navy/paper instead
 - Stack multiple shadows (use one shadow from the scale)
-- Hardcode hex values (always reference token names)
+- Scatter raw hex through the markup — define the palette once as CSS `:root` variables and reference those (as `polly_debrief_form.html` does). *(Plain CSS variables — not a build/token system.)*
 - Use serif font for anything under 20px (readability breaks)
 - Forget touch targets on mobile (44px minimum)
 - Violate the 60-character measure for body text
@@ -360,8 +377,8 @@ For Claude Cowork Marketing System:
 
 ## 15. Contact & Versioning
 
-**Document Version:** 1.0 · July 2026
-**Design System Base:** Sturij Visualiser v4 (prototype in Figma)
+**Document Version:** 1.1 · July 2026
+**Design System Base:** distilled from the main Sturij app's design system. The working reference for this repo is `polly_debrief_form.html` + `STURIJ_BRAND_ASSETS/`.
 **Last Updated:** 2026-07-09
 
-For brand questions, design audits, or component additions, route through the design system page (`Sturij Design System.dc.html`) — audit before ship.
+For brand questions or new components, **match this DESIGN.md** and use `polly_debrief_form.html` as the reference implementation, with the real logos in `STURIJ_BRAND_ASSETS/`. There is **no audit gate or design-system page** here — consistency comes from following the file, not from machinery.
