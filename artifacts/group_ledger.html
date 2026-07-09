@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sturij — Group Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#20384a; --gold:#d4aa58; --bronze:#8b5e2c; --paper:#faf8f2; --card:#fdfcf8;
+    --ink-dark:#241f1a; --ink-body:#3d3830; --ink-muted:#6b6358; --success:#4a7c59;
+    --danger:#a95d41; --info:#5b8a9a;
+    --line:rgba(35,31,27,.12); --line-soft:rgba(35,31,27,.07);
+    --shadow-card:0 1px 2px rgba(35,31,27,.04), 0 10px 30px rgba(35,31,27,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink-body);font-family:'DM Sans',system-ui,sans-serif;font-size:17px;line-height:1.7;min-height:100vh;padding:22px}
+  .wrap{max-width:1040px;margin:0 auto}
+
+  header{text-align:left;padding:56px 0 28px}
+  .kicker{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--bronze)}
+  h1{font-family:'DM Serif Display',serif;font-weight:400;font-size:44px;line-height:1.06;color:var(--ink-dark);margin:16px 0 12px;letter-spacing:-.01em}
+  h1 em{color:var(--gold);font-style:italic}
+  .sub{color:var(--ink-muted);font-size:16px;max-width:52ch;margin:0}
+
+  .stripbar{display:flex;justify-content:flex-start;gap:26px;flex-wrap:wrap;margin:30px 0 8px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted)}
+  .stripbar b{color:var(--ink-dark);font-weight:600;font-size:14px}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .dot.green{background:var(--success)} .dot.amber{background:var(--gold)} .dot.red{background:var(--danger)}
+
+  .card{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:26px;box-shadow:var(--shadow-card);margin-bottom:14px}
+  .card h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:24px;color:var(--ink-dark);margin-bottom:6px}
+  .card .intro{font-size:14.5px;color:var(--ink-muted);margin-bottom:18px}
+
+  #importPanel textarea{width:100%;background:var(--card);border:1px solid rgba(35,31,27,.14);border-radius:8px;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink-body);min-height:120px;resize:vertical;line-height:1.6}
+  #importPanel textarea:focus{outline:2px solid var(--navy);border-color:var(--gold)}
+  .import-hint{font-size:12.5px;color:var(--ink-muted);margin:8px 0 14px}
+
+  .btn{min-height:44px;padding:0 22px;border-radius:10px;border:none;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:550;cursor:pointer;transition:transform .15s}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:linear-gradient(180deg,#27435b 0%,#1d3242 100%);color:rgba(250,248,242,.96);box-shadow:inset 0 1px 0 rgba(250,248,242,.14),0 1px 2px rgba(35,31,27,.28),0 4px 12px rgba(35,31,27,.16)}
+  .btn-primary:hover{transform:translateY(-1px)}
+  .btn-secondary{background:transparent;border:1px solid var(--line);color:var(--ink-body)}
+  .btn-secondary:hover{border-color:var(--bronze);color:var(--bronze)}
+  .btn-sm{min-height:36px;padding:0 16px;font-size:13px}
+  .btn[disabled]{opacity:.4;cursor:not-allowed}
+
+  .toolbar{display:flex;gap:8px;margin:22px 0;flex-wrap:wrap}
+  .toolbar input[type=text]{flex:1;min-width:160px;min-height:44px;background:var(--card);border:1px solid rgba(35,31,27,.14);border-radius:8px;padding:0 12px;font-family:'DM Sans',sans-serif;font-size:15px;color:var(--ink-body)}
+  .toolbar input[type=text]:focus{outline:2px solid var(--navy);border-color:var(--gold)}
+  .toolbar select{min-height:44px;background:var(--card);border:1px solid rgba(35,31,27,.14);border-radius:8px;padding:0 12px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink-body);cursor:pointer}
+  .toolbar select:focus{outline:2px solid var(--navy);border-color:var(--gold)}
+
+  .section-label{font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze);margin:34px 0 12px}
+
+  .row{display:flex;align-items:center;gap:12px;padding:13px 14px;border:1px solid var(--line-soft);border-radius:10px;background:var(--card);margin-bottom:8px;cursor:pointer;transition:border-color .15s,transform .15s}
+  .row:hover{border-color:var(--bronze);transform:translateX(2px)}
+  .row .name{flex:1;font-size:14.5px;color:var(--ink-body);font-weight:500}
+  .row .resp{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-muted);white-space:nowrap}
+  .row .chip-tier{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:999px;font-weight:600}
+  .chip-tier.green{background:rgba(74,124,89,.12);color:var(--success)}
+  .chip-tier.amber{background:rgba(212,170,88,.16);color:var(--bronze)}
+  .chip-tier.red{background:rgba(169,93,65,.12);color:var(--danger)}
+  .row .review-link{font-size:12.5px;color:var(--navy);font-weight:600;white-space:nowrap}
+
+  .groupcard{border:1px solid var(--line-soft);border-radius:12px;padding:20px;margin-bottom:12px;background:rgba(212,170,88,.04)}
+  .groupcard-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px}
+  .groupcard h3{font-family:'DM Serif Display',serif;font-weight:400;font-size:20px;color:var(--ink-dark)}
+  .confirmed-badge{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--success);white-space:nowrap}
+  .needs-review{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--bronze);white-space:nowrap}
+
+  .qlabel{display:block;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--bronze);margin-bottom:8px;margin-top:16px}
+  .qlabel:first-child{margin-top:0}
+  .tierchips{display:flex;gap:8px}
+  .tierchip{min-height:40px;flex:1;display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:#f5f2ec;font-size:13.5px;font-weight:500;color:var(--ink-body);cursor:pointer;transition:all .15s;user-select:none}
+  .tierchip.on-green{background:rgba(74,124,89,.16);border-color:var(--success);color:var(--ink-dark)}
+  .tierchip.on-amber{background:rgba(212,170,88,.16);border-color:var(--gold);color:var(--ink-dark)}
+  .tierchip.on-red{background:rgba(169,93,65,.16);border-color:var(--danger);color:var(--ink-dark)}
+
+  .respinput{display:flex;align-items:center;gap:8px}
+  .respinput input{width:80px;min-height:38px;background:var(--card);border:1px solid rgba(35,31,27,.14);border-radius:8px;padding:0 10px;font-size:14px;color:var(--ink-body)}
+  .respinput input:focus{outline:2px solid var(--navy);border-color:var(--gold)}
+  .respinput span{font-size:12.5px;color:var(--ink-muted)}
+
+  .context-box{border:1px solid var(--line-soft);border-radius:12px;padding:16px 18px;background:var(--card)}
+  .context-summary{font-size:13.5px;color:var(--ink-body);line-height:1.6;margin-bottom:14px}
+  .context-empty{font-size:13px;color:var(--ink-muted);font-style:italic;margin-bottom:12px}
+  .slider-row{display:flex;align-items:center;gap:12px}
+  .slider-row input[type=range]{flex:1;accent-color:var(--navy)}
+  .slider-labels{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);margin-top:6px}
+  .slider-note{font-size:11.5px;color:var(--ink-muted);margin-top:8px;font-style:italic}
+  .research-status{font-size:12.5px;color:var(--ink-muted);font-family:'IBM Plex Mono',monospace;letter-spacing:.04em}
+
+  .loc-hero{width:100%;height:140px;object-fit:cover;border-radius:12px;margin-bottom:14px;display:block;background:var(--line-soft)}
+  .loc-hero-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .loc-picks{display:flex;gap:8px;margin-bottom:14px}
+  .loc-pick{width:76px;height:76px;object-fit:cover;border-radius:12px;cursor:pointer;border:2px solid transparent;transition:transform .15s,border-color .15s;background:var(--line-soft)}
+  .loc-pick:hover{transform:translateY(-2px);border-color:var(--gold)}
+  .loc-picks-hint{font-size:12px;color:var(--ink-muted);margin-bottom:8px}
+  .row-thumb{width:32px;height:32px;object-fit:cover;border-radius:10px;flex-shrink:0}
+
+  .tag-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .tag-chip{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;background:rgba(91,138,154,.1);color:var(--info);border:1px solid rgba(91,138,154,.3);border-radius:999px;padding:4px 10px 4px 12px;display:inline-flex;align-items:center;gap:6px}
+  .tag-chip button{background:none;border:none;color:var(--info);cursor:pointer;font-size:12px;line-height:1;padding:0}
+  .tag-chip-row{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--info);background:rgba(91,138,154,.1);border:1px solid rgba(91,138,154,.25);border-radius:999px;padding:3px 9px;white-space:nowrap}
+  .tag-add-row{display:flex;gap:8px;margin-top:4px}
+  .tag-add-row input{flex:1;min-height:34px;background:var(--card);border:1px solid rgba(35,31,27,.14);border-radius:8px;padding:0 10px;font-size:13px;color:var(--ink-body)}
+  .tag-add-row input:focus{outline:2px solid var(--navy);border-color:var(--gold)}
+
+  .rules-box{border-left:3px solid var(--navy);background:var(--card);border-radius:0 10px 10px 0;padding:14px 16px}
+  textarea.rules-text{width:100%;background:transparent;border:1px solid rgba(35,31,27,.14);border-radius:8px;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:13.5px;color:var(--ink-body);min-height:90px;resize:vertical;line-height:1.55}
+  textarea.rules-text:focus{outline:2px solid var(--navy);border-color:var(--gold)}
+  .rules-meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:11.5px;color:var(--ink-muted)}
+  .rules-updated{font-family:'IBM Plex Mono',monospace;letter-spacing:.03em}
+  .rules-stale{color:var(--danger);font-weight:600}
+
+  .day-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .day-chip{min-width:44px;min-height:38px;display:inline-flex;align-items:center;justify-content:center;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:#f5f2ec;font-size:12.5px;font-weight:600;color:var(--ink-muted);cursor:pointer;transition:all .15s;user-select:none;font-family:'IBM Plex Mono',monospace}
+  .day-chip.on{background:rgba(74,124,89,.16);border-color:var(--success);color:var(--ink-dark)}
+  .day-note-input{width:100%;min-height:38px;background:var(--card);border:1px solid rgba(35,31,27,.14);border-radius:8px;padding:0 10px;font-size:13.5px;color:var(--ink-body);margin-top:10px}
+  .day-note-input:focus{outline:2px solid var(--navy);border-color:var(--gold)}
+
+  .events-section{margin:40px 0}
+  .events-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  .event-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--line-soft);border-radius:10px;background:var(--card)}
+  .event-date{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--bronze);font-weight:600;white-space:nowrap;min-width:88px}
+  .event-name{flex:1;font-size:14.5px;color:var(--ink-body);font-weight:500}
+  .event-note{font-size:12.5px;color:var(--ink-muted)}
+  .event-remove{background:none;border:none;color:var(--ink-muted);cursor:pointer;font-size:16px;line-height:1;padding:4px}
+  .event-remove:hover{color:var(--danger)}
+  .event-form{display:flex;gap:8px;flex-wrap:wrap}
+  .event-form input[type=text]{flex:2;min-width:140px;min-height:44px;background:var(--card);border:1px solid rgba(35,31,27,.14);border-radius:8px;padding:0 12px;font-size:14px;color:var(--ink-body)}
+  .event-form input[type=date]{min-height:44px;background:var(--card);border:1px solid rgba(35,31,27,.14);border-radius:8px;padding:0 12px;font-size:14px;color:var(--ink-body)}
+  .event-form input:focus{outline:2px solid var(--navy);border-color:var(--gold)}
+
+  .avoid-callout{border:1.5px dashed var(--bronze);border-radius:12px;padding:16px 18px;background:rgba(212,170,88,.06)}
+  .avoid-callout .avoid-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .avoid-chip{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;text-transform:uppercase;background:rgba(169,93,65,.08);color:var(--danger);border:1px solid rgba(169,93,65,.25);border-radius:999px;padding:5px 10px 5px 12px;display:inline-flex;align-items:center;gap:6px}
+  .avoid-chip button{background:none;border:none;color:var(--danger);cursor:pointer;font-size:13px;line-height:1;padding:0}
+  .avoid-input{display:flex;gap:8px}
+  .avoid-input input{flex:1;min-height:38px;background:var(--card);border:1px solid rgba(35,31,27,.14);border-radius:8px;padding:0 10px;font-size:13.5px;color:var(--ink-body)}
+  .avoid-input input:focus{outline:2px solid var(--navy);border-color:var(--gold)}
+  .avoid-empty{font-size:13px;color:var(--ink-muted);font-style:italic;margin-bottom:8px}
+
+  textarea.notes{width:100%;background:var(--card);border:1px solid rgba(35,31,27,.14);border-radius:8px;padding:10px 12px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink-body);min-height:64px;resize:vertical;line-height:1.6}
+  textarea.notes:focus{outline:2px solid var(--navy);border-color:var(--gold)}
+
+  .groupcard-foot{display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:10px}
+
+  .empty-state{text-align:center;padding:40px 20px;color:var(--ink-muted);font-size:14px}
+  .saved{font-size:12px;color:var(--ink-muted);text-align:center;margin-top:26px;font-family:'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;min-height:16px}
+
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kicker">Sturij Marketing &middot; Discovery</div>
+    <h1>325 groups.<br>One calm <em>ledger</em>.</h1>
+    <p class="sub">Rules and risk per group, at a glance. Pre-filled where we can, confirmed by you &mdash; never composed from nothing.</p>
+  </header>
+
+  <div class="stripbar" id="stripbar"></div>
+
+  <div id="importPanel" class="card">
+    <h2>Import your groups</h2>
+    <p class="intro">Paste one group per line. Everything starts on a safe amber default &mdash; nothing needs deciding yet.</p>
+    <textarea id="importText" placeholder="Harrogate Mums &amp; Businesses
+Yorkshire Home &amp; Garden
+Leeds Buy Nothing
+..."></textarea>
+    <p class="import-hint">One name per line, or "Name, rough size, area" if you have it &mdash; e.g. "Harrogate Mums, 8.2k, Harrogate"</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-primary" id="importBtn">Import groups</button>
+      <button class="btn btn-secondary" id="seedDemoBtn">Just show me an example</button>
+    </div>
+  </div>
+
+  <div id="mainArea" style="display:none">
+    <div class="toolbar">
+      <input type="text" id="searchInput" placeholder="Find a group&hellip;">
+      <select id="sortSelect">
+        <option value="review">Needs review first</option>
+        <option value="responses">Most responsive first</option>
+        <option value="az">A&ndash;Z</option>
+      </select>
+      <button class="btn btn-secondary btn-sm" id="addOneBtn">+ Add one</button>
+    </div>
+
+    <div class="section-label">Local events &middot; things worth posting about</div>
+    <div class="events-section">
+      <div class="events-list" id="eventsList"></div>
+      <div class="event-form">
+        <input type="text" id="eventName" placeholder="Event name&hellip; e.g. Harrogate Christmas Market">
+        <input type="date" id="eventDate">
+        <button class="btn btn-secondary btn-sm" id="addEventBtn">+ Add event</button>
+      </div>
+    </div>
+
+    <div class="section-label">Key groups &middot; reviewed in detail</div>
+    <div id="keyList"></div>
+    <div id="keyEmpty" class="empty-state" style="display:none">No key groups yet &mdash; tap "Review" on any group below to bring it here.</div>
+
+    <div class="section-label">Everything else &middot; safe amber defaults</div>
+    <div id="tailList"></div>
+
+    <p class="saved" id="savedNote">&nbsp;</p>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'group-ledger:groups';
+const EVENTS_STORAGE_KEY = 'group-ledger:events';
+let groups = [];
+let events = [];
+let saveTimer = null;
+
+function uid(){ return 'g' + Math.random().toString(36).slice(2, 10); }
+
+const TAG_RULES = [
+  { re: /business/i, tag: 'Business' },
+  { re: /trade|trader/i, tag: 'Trade' },
+  { re: /\bmum\b|\bmums\b|\bmom\b|parent/i, tag: 'Parenting' },
+  { re: /\bkid\b|\bkids\b|famil/i, tag: 'Family' },
+  { re: /buy.?nothing|swap|for sale|marketplace|\bsell\b/i, tag: 'Buy & Sell' },
+  { re: /grumbler|community|connect|local life/i, tag: 'Community' },
+  { re: /garden|renovat|\bdiy\b|interior|home\b/i, tag: 'Home & Garden' },
+];
+
+function autoTagFromName(name){
+  const tags = [];
+  TAG_RULES.forEach(r => { if(r.re.test(name) && !tags.includes(r.tag)) tags.push(r.tag); });
+  return tags;
+}
+
+function parseImport(text){
+  return text.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+    const parts = line.split(',').map(p => p.trim());
+    const name = parts[0];
+    return {
+      id: uid(),
+      name: name,
+      size: parts[1] || '',
+      area: parts[2] || '',
+      tier: 'amber',
+      avoid: [],
+      tags: autoTagFromName(name),
+      notes: '',
+      responses: 0,
+      confirmed: false,
+      isKey: false
+    };
+  });
+}
+
+async function loadGroups(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY);
+    groups = res && res.value ? JSON.parse(res.value) : [];
+    groups.forEach(g => { if(typeof g.responses !== 'number') g.responses = 0; });
+  } catch(e){
+    groups = [];
+  }
+  render();
+}
+
+function scheduleSave(){
+  const note = document.getElementById('savedNote');
+  if(note) note.textContent = 'Saving\u2026';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try{
+      await window.storage.set(STORAGE_KEY, JSON.stringify(groups));
+      if(note) note.textContent = 'Saved';
+      setTimeout(() => { if(note) note.textContent = '\u00a0'; }, 1500);
+    } catch(e){
+      if(note) note.textContent = 'Could not save \u2014 changes are local to this view only';
+    }
+  }, 400);
+}
+
+function counts(){
+  const total = groups.length;
+  const confirmed = groups.filter(g => g.confirmed).length;
+  const amber = groups.filter(g => g.tier === 'amber' && !g.confirmed).length;
+  const green = groups.filter(g => g.tier === 'green').length;
+  const red = groups.filter(g => g.tier === 'red').length;
+  return { total, confirmed, amber, green, red };
+}
+
+function renderStrip(){
+  const c = counts();
+  const el = document.getElementById('stripbar');
+  if(c.total === 0){ el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <span><b>${c.confirmed}</b> confirmed</span>
+    <span><span class="dot amber"></span><b>${c.amber}</b> on default amber</span>
+    <span><span class="dot green"></span><b>${c.green}</b> green</span>
+    <span><span class="dot red"></span><b>${c.red}</b> red</span>
+    <span><b>${c.total}</b> total</span>
+  `;
+}
+
+function tierLabel(t){ return t === 'green' ? 'Green' : t === 'red' ? 'Red' : 'Amber'; }
+
+function sortGroups(list){
+  const mode = document.getElementById('sortSelect')?.value || 'review';
+  const copy = list.slice();
+  if(mode === 'responses'){
+    copy.sort((a,b) => (b.responses||0) - (a.responses||0));
+  } else if(mode === 'az'){
+    copy.sort((a,b) => a.name.localeCompare(b.name));
+  } else {
+    copy.sort((a,b) => {
+      if(a.confirmed !== b.confirmed) return a.confirmed ? 1 : -1;
+      return (b.responses||0) - (a.responses||0);
+    });
+  }
+  return copy;
+}
+
+function render(){
+  document.getElementById('importPanel').style.display = groups.length ? 'none' : 'block';
+  document.getElementById('mainArea').style.display = groups.length ? 'block' : 'none';
+  renderStrip();
+
+  const query = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const visible = sortGroups(groups.filter(g => g.name.toLowerCase().includes(query)));
+
+  const keyGroups = visible.filter(g => g.isKey);
+  const tailGroups = visible.filter(g => !g.isKey);
+
+  const keyList = document.getElementById('keyList');
+  const keyEmpty = document.getElementById('keyEmpty');
+  keyList.innerHTML = '';
+  keyEmpty.style.display = keyGroups.length ? 'none' : 'block';
+  keyGroups.forEach(g => keyList.appendChild(renderCard(g)));
+
+  const tailList = document.getElementById('tailList');
+  tailList.innerHTML = '';
+  tailGroups.forEach(g => tailList.appendChild(renderRow(g)));
+}
+
+function renderRow(g){
+  const row = document.createElement('div');
+  row.className = 'row';
+  const tagHtml = (g.tags || []).map(t => `<span class="tag-chip-row">${escapeHtml(t)}</span>`).join('');
+  row.innerHTML = `
+    ${g.image ? `<img class="row-thumb" src="${escapeHtml(g.image)}" alt="">` : ''}
+    <span class="name">${escapeHtml(g.name)}</span>
+    ${tagHtml}
+    ${g.responses ? `<span class="resp">${g.responses} resp.</span>` : ''}
+    <span class="chip-tier ${g.tier}">${tierLabel(g.tier)}</span>
+    <span class="review-link">Review &rarr;</span>
+  `;
+  row.addEventListener('click', () => {
+    g.isKey = true;
+    scheduleSave();
+    render();
+  });
+  return row;
+}
+
+function renderCard(g){
+  const card = document.createElement('div');
+  card.className = 'groupcard';
+
+  if(g.image){
+    const heroRow = document.createElement('div');
+    heroRow.className = 'loc-hero-row';
+    heroRow.style.flexDirection = 'column';
+    heroRow.style.alignItems = 'stretch';
+    const hero = document.createElement('img');
+    hero.className = 'loc-hero';
+    hero.src = g.image;
+    hero.alt = g.name;
+    heroRow.appendChild(hero);
+    const changeBtn = document.createElement('button');
+    changeBtn.className = 'btn btn-secondary btn-sm';
+    changeBtn.textContent = 'Change image';
+    changeBtn.style.alignSelf = 'flex-start';
+    changeBtn.addEventListener('click', () => fetchImageCandidates(g));
+    heroRow.appendChild(changeBtn);
+    card.appendChild(heroRow);
+  } else if(g.imageCandidates && g.imageCandidates.length){
+    const hint = document.createElement('div');
+    hint.className = 'loc-picks-hint';
+    hint.textContent = 'Pick an image for this group:';
+    card.appendChild(hint);
+    const picks = document.createElement('div');
+    picks.className = 'loc-picks';
+    g.imageCandidates.forEach(url => {
+      const img = document.createElement('img');
+      img.className = 'loc-pick';
+      img.src = url;
+      img.alt = 'Choose this image';
+      img.addEventListener('click', () => {
+        g.image = url;
+        g.imageCandidates = [];
+        scheduleSave();
+        render();
+      });
+      picks.appendChild(img);
+    });
+    card.appendChild(picks);
+  }
+
+  const head = document.createElement('div');
+  head.className = 'groupcard-head';
+  head.innerHTML = `
+    <h3>${escapeHtml(g.name)}${g.area ? ` <span style="font-size:13px;color:var(--ink-muted);font-family:'DM Sans',sans-serif;font-weight:400">&middot; ${escapeHtml(g.area)}</span>` : ''}</h3>
+    <span class="${g.confirmed ? 'confirmed-badge' : 'needs-review'}">${g.confirmed ? '\u2713 Confirmed' : 'Needs review'}</span>
+  `;
+  card.appendChild(head);
+
+  const tagsBlock = document.createElement('div');
+  tagsBlock.style.marginBottom = '14px';
+  const tagChips = document.createElement('div');
+  tagChips.className = 'tag-chips';
+  (g.tags || []).forEach((t, idx) => {
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip';
+    chip.innerHTML = `${escapeHtml(t)} <button aria-label="Remove tag">&times;</button>`;
+    chip.querySelector('button').addEventListener('click', () => {
+      g.tags.splice(idx, 1);
+      scheduleSave();
+      render();
+    });
+    tagChips.appendChild(chip);
+  });
+  tagsBlock.appendChild(tagChips);
+  const tagAddRow = document.createElement('div');
+  tagAddRow.className = 'tag-add-row';
+  tagAddRow.innerHTML = `<input type="text" placeholder="Add a tag&hellip; (auto-detected from the name, edit freely)">`;
+  const tagInput = tagAddRow.querySelector('input');
+  tagInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' && tagInput.value.trim()){
+      g.tags = g.tags || [];
+      g.tags.push(tagInput.value.trim());
+      tagInput.value = '';
+      scheduleSave();
+      render();
+    }
+  });
+  tagsBlock.appendChild(tagAddRow);
+  card.appendChild(tagsBlock);
+
+  const tierLabelEl = document.createElement('label');
+  tierLabelEl.className = 'qlabel';
+  tierLabelEl.textContent = 'Temperature';
+  card.appendChild(tierLabelEl);
+
+  const tierRow = document.createElement('div');
+  tierRow.className = 'tierchips';
+  ['green','amber','red'].forEach(t => {
+    const chip = document.createElement('div');
+    chip.className = 'tierchip' + (g.tier === t ? ` on-${t}` : '');
+    chip.textContent = tierLabel(t);
+    chip.addEventListener('click', () => {
+      g.tier = t;
+      scheduleSave();
+      render();
+    });
+    tierRow.appendChild(chip);
+  });
+  card.appendChild(tierRow);
+
+  const respLabelEl = document.createElement('label');
+  respLabelEl.className = 'qlabel';
+  respLabelEl.textContent = 'Responses so far';
+  card.appendChild(respLabelEl);
+
+  const respRow = document.createElement('div');
+  respRow.className = 'respinput';
+  respRow.innerHTML = `<input type="number" min="0" value="${g.responses||0}"><span>enquiries generated here</span>`;
+  const respInputEl = respRow.querySelector('input');
+  respInputEl.addEventListener('input', () => {
+    g.responses = parseInt(respInputEl.value, 10) || 0;
+    scheduleSave();
+  });
+  card.appendChild(respRow);
+
+  const areaLabel = document.createElement('label');
+  areaLabel.className = 'qlabel';
+  areaLabel.textContent = 'Area';
+  card.appendChild(areaLabel);
+
+  const areaRow = document.createElement('div');
+  areaRow.className = 'respinput';
+  areaRow.innerHTML = `<input type="text" style="width:200px" placeholder="e.g. Harrogate" value="${escapeHtml(g.area||'')}">`;
+  const areaInputEl = areaRow.querySelector('input');
+  areaInputEl.addEventListener('input', () => {
+    g.area = areaInputEl.value;
+    scheduleSave();
+  });
+  areaInputEl.addEventListener('blur', render);
+  card.appendChild(areaRow);
+
+  const contextLabel = document.createElement('label');
+  contextLabel.className = 'qlabel';
+  contextLabel.textContent = 'Area context & tone';
+  card.appendChild(contextLabel);
+
+  const contextBox = document.createElement('div');
+  contextBox.className = 'context-box';
+
+  if(g.contextSummary){
+    const summary = document.createElement('div');
+    summary.className = 'context-summary';
+    summary.textContent = g.contextSummary;
+    contextBox.appendChild(summary);
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'context-empty';
+    empty.textContent = g.area
+      ? 'Not researched yet \u2014 pull public area data to suggest a starting tone.'
+      : 'Add an area above, then research it to suggest a starting tone.';
+    contextBox.appendChild(empty);
+  }
+
+  const sliderRow = document.createElement('div');
+  sliderRow.className = 'slider-row';
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.min = '0';
+  slider.max = '100';
+  slider.value = g.tone ?? 50;
+  slider.addEventListener('input', () => {
+    g.tone = parseInt(slider.value, 10);
+    scheduleSave();
+  });
+  sliderRow.appendChild(slider);
+  contextBox.appendChild(sliderRow);
+
+  const sliderLabels = document.createElement('div');
+  sliderLabels.className = 'slider-labels';
+  sliderLabels.innerHTML = `<span>Down-to-earth</span><span>Polished</span>`;
+  contextBox.appendChild(sliderLabels);
+
+  if(g.contextSummary){
+    const note = document.createElement('div');
+    note.className = 'slider-note';
+    note.textContent = 'Suggested from public area data \u2014 move it if this doesn\u2019t sound right. You know the room, not the research.';
+    contextBox.appendChild(note);
+  }
+
+  const researchRow = document.createElement('div');
+  researchRow.style.marginTop = '12px';
+  const researchBtn = document.createElement('button');
+  researchBtn.className = 'btn btn-secondary btn-sm';
+  researchBtn.textContent = g.contextSummary ? 'Re-research area' : 'Research this area';
+  researchBtn.disabled = !g.area;
+  researchBtn.addEventListener('click', () => runAreaResearch(g, researchBtn));
+  researchRow.appendChild(researchBtn);
+  contextBox.appendChild(researchRow);
+
+  card.appendChild(contextBox);
+
+  const rulesLabel = document.createElement('label');
+  rulesLabel.className = 'qlabel';
+  rulesLabel.textContent = 'Official rules (verbatim)';
+  card.appendChild(rulesLabel);
+
+  const rulesBox = document.createElement('div');
+  rulesBox.className = 'rules-box';
+  const rulesTextarea = document.createElement('textarea');
+  rulesTextarea.className = 'rules-text';
+  rulesTextarea.placeholder = 'Paste the group\u2019s actual Rules tab here, word for word \u2014 don\u2019t paraphrase. This is what a moderator will actually enforce.';
+  rulesTextarea.value = g.officialRules || '';
+  rulesTextarea.addEventListener('input', () => {
+    g.officialRules = rulesTextarea.value;
+    g.rulesUpdated = new Date().toISOString();
+    scheduleSave();
+  });
+  rulesTextarea.addEventListener('blur', render);
+  rulesBox.appendChild(rulesTextarea);
+
+  const rulesMeta = document.createElement('div');
+  rulesMeta.className = 'rules-meta';
+  if(g.rulesUpdated){
+    const days = Math.floor((Date.now() - new Date(g.rulesUpdated).getTime()) / 86400000);
+    const stale = days > 90;
+    rulesMeta.innerHTML = `<span class="rules-updated${stale ? ' rules-stale' : ''}">${stale ? '\u26a0 ' : ''}Captured ${days === 0 ? 'today' : days + ' day' + (days === 1 ? '' : 's') + ' ago'}${stale ? ' \u2014 worth re-checking' : ''}</span>`;
+  } else {
+    rulesMeta.innerHTML = `<span>Not captured yet</span>`;
+  }
+  rulesBox.appendChild(rulesMeta);
+  card.appendChild(rulesBox);
+
+  const daysLabel = document.createElement('label');
+  daysLabel.className = 'qlabel';
+  daysLabel.textContent = 'When can we post here?';
+  card.appendChild(daysLabel);
+
+  const dayRow = document.createElement('div');
+  dayRow.className = 'day-chips';
+  const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  g.postingDays = g.postingDays || [];
+  DAY_NAMES.forEach(d => {
+    const chip = document.createElement('div');
+    chip.className = 'day-chip' + (g.postingDays.includes(d) ? ' on' : '');
+    chip.textContent = d;
+    chip.addEventListener('click', () => {
+      const i = g.postingDays.indexOf(d);
+      if(i === -1) g.postingDays.push(d); else g.postingDays.splice(i, 1);
+      scheduleSave();
+      render();
+    });
+    dayRow.appendChild(chip);
+  });
+  card.appendChild(dayRow);
+
+  const dayNote = document.createElement('input');
+  dayNote.className = 'day-note-input';
+  dayNote.type = 'text';
+  dayNote.placeholder = 'e.g. ads only on those days \u2014 general posts anytime';
+  dayNote.value = g.postingNote || '';
+  dayNote.addEventListener('input', () => {
+    g.postingNote = dayNote.value;
+    scheduleSave();
+  });
+  card.appendChild(dayNote);
+
+  const avoidLabel = document.createElement('label');
+  avoidLabel.className = 'qlabel';
+  avoidLabel.textContent = 'Things to avoid';
+  card.appendChild(avoidLabel);
+
+  const avoidCallout = document.createElement('div');
+  avoidCallout.className = 'avoid-callout';
+
+  if(!(g.avoid && g.avoid.length)){
+    const empty = document.createElement('div');
+    empty.className = 'avoid-empty';
+    empty.textContent = 'Nothing flagged yet \u2014 add anything this group is strict about.';
+    avoidCallout.appendChild(empty);
+  }
+
+  const avoidChips = document.createElement('div');
+  avoidChips.className = 'avoid-chips';
+  (g.avoid || []).forEach((a, idx) => {
+    const chip = document.createElement('span');
+    chip.className = 'avoid-chip';
+    chip.innerHTML = `${escapeHtml(a)} <button aria-label="Remove">&times;</button>`;
+    chip.querySelector('button').addEventListener('click', () => {
+      g.avoid.splice(idx, 1);
+      scheduleSave();
+      render();
+    });
+    avoidChips.appendChild(chip);
+  });
+  avoidCallout.appendChild(avoidChips);
+
+  const avoidInputRow = document.createElement('div');
+  avoidInputRow.className = 'avoid-input';
+  avoidInputRow.innerHTML = `<input type="text" placeholder="e.g. no links, no price-first&hellip;">`;
+  const avoidInput = avoidInputRow.querySelector('input');
+  avoidInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' && avoidInput.value.trim()){
+      g.avoid = g.avoid || [];
+      g.avoid.push(avoidInput.value.trim());
+      avoidInput.value = '';
+      scheduleSave();
+      render();
+    }
+  });
+  avoidCallout.appendChild(avoidInputRow);
+  card.appendChild(avoidCallout);
+
+  const notesLabel = document.createElement('label');
+  notesLabel.className = 'qlabel';
+  notesLabel.textContent = 'Notes';
+  card.appendChild(notesLabel);
+
+  const notes = document.createElement('textarea');
+  notes.className = 'notes';
+  notes.placeholder = 'Anything else worth remembering about this group\u2026';
+  notes.value = g.notes || '';
+  notes.addEventListener('input', () => {
+    g.notes = notes.value;
+    scheduleSave();
+  });
+  card.appendChild(notes);
+
+  const foot = document.createElement('div');
+  foot.className = 'groupcard-foot';
+  const backBtn = document.createElement('button');
+  backBtn.className = 'btn btn-secondary btn-sm';
+  backBtn.textContent = 'Back to list';
+  backBtn.addEventListener('click', () => {
+    g.isKey = false;
+    scheduleSave();
+    render();
+  });
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'btn btn-primary btn-sm';
+  confirmBtn.textContent = g.confirmed ? 'Confirmed' : 'Confirm';
+  confirmBtn.disabled = g.confirmed;
+  confirmBtn.addEventListener('click', () => {
+    g.confirmed = true;
+    scheduleSave();
+    render();
+  });
+  foot.appendChild(backBtn);
+  foot.appendChild(confirmBtn);
+  card.appendChild(foot);
+
+  return card;
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+async function fetchImageCandidates(g){
+  const query = g.area || g.name;
+  if(!query) return;
+  try{
+    const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url&iiurlwidth=300&format=json&origin=*`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const pages = data.query && data.query.pages ? Object.values(data.query.pages) : [];
+    const urls = pages
+      .map(p => p.imageinfo && p.imageinfo[0] && (p.imageinfo[0].thumburl || p.imageinfo[0].url))
+      .filter(Boolean)
+      .filter(u => /\.(jpe?g|png)$/i.test(u));
+    g.image = null;
+    g.imageCandidates = urls.slice(0, 3);
+    scheduleSave();
+    render();
+  } catch(e){
+    // no images found / network issue \u2014 fail quietly, text research still stands on its own
+    g.imageCandidates = [];
+  }
+}
+
+async function runAreaResearch(g, btnEl){
+  const originalText = btnEl.textContent;
+  btnEl.textContent = 'Researching\u2026';
+  btnEl.disabled = true;
+
+  try{
+    const prompt = `You are researching a UK location for a fitted-furniture business deciding how formal or casual to write Facebook posts for a local community group there.
+
+Location / group context: "${g.name}"${g.area ? `, area: ${g.area}` : ''}
+
+Using public UK data (ONS Census 2021, general knowledge of the area), do the following:
+1. Write a 2-3 sentence factual context summary of this area \u2014 median age, occupation mix, homeownership, general character. Cite what you actually find; if you can't find specifics for this exact place, say so and give your best general read.
+2. Suggest a single "tone" number from 0 to 100, where 0 means "down-to-earth, plain-spoken, casual" and 100 means "polished, considered, more formal" \u2014 based on the area's profile (older/more affluent/professional areas lean higher; younger/mixed/renter-heavy areas lean lower).
+
+Respond with ONLY a JSON object as your final message, nothing else, no markdown fences:
+{"summary": "...", "tone": <integer 0-100>}`;
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }],
+        tools: [{ type: "web_search_20250305", name: "web_search" }]
+      })
+    });
+
+    const data = await response.json();
+    const textBlocks = (data.content || []).filter(b => b.type === 'text').map(b => b.text);
+    const lastText = textBlocks[textBlocks.length - 1] || '';
+    const cleaned = lastText.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+
+    g.contextSummary = parsed.summary || '';
+    g.tone = typeof parsed.tone === 'number' ? Math.max(0, Math.min(100, parsed.tone)) : (g.tone ?? 50);
+    scheduleSave();
+    render();
+    fetchImageCandidates(g);
+  } catch(e){
+    btnEl.textContent = 'Couldn\u2019t research \u2014 try again';
+    btnEl.disabled = false;
+    setTimeout(() => { btnEl.textContent = originalText; }, 2500);
+  }
+}
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  const text = document.getElementById('importText').value;
+  const parsed = parseImport(text);
+  if(parsed.length){
+    groups = groups.concat(parsed);
+    scheduleSave();
+    render();
+  }
+});
+
+document.getElementById('seedDemoBtn').addEventListener('click', () => {
+  // Illustrative placeholder data only — not real groups, just enough to see every state.
+  groups = [
+    { id: uid(), name: '[Example] Harrogate Mums & Businesses', size: '8.2k', area: 'Harrogate',
+      tier: 'green', avoid: ['no links', 'no price-first'], tags: ['Parenting', 'Business'], notes: 'Friendly mods, replies well to process photos.',
+      responses: 14, confirmed: true, isKey: true },
+    { id: uid(), name: '[Example] Yorkshire Home & Garden', size: '12k', area: 'Yorkshire',
+      tier: 'amber', avoid: ['no tagging our page'], tags: ['Home & Garden'], notes: 'Mixed bag \u2014 works best on weekday mornings.',
+      responses: 6, confirmed: true, isKey: true },
+    { id: uid(), name: '[Example] Leeds Buy Nothing', size: '30k', area: 'Leeds',
+      tier: 'red', avoid: ['no promo of any kind', 'no comment replies with links', 'strict mods, one warning = ban'], tags: ['Buy & Sell'], notes: 'A mod runs a competing joinery business \u2014 tread carefully.',
+      responses: 0, confirmed: true, isKey: true },
+    { id: uid(), name: '[Example] Ripon Traders Circle', size: '3.1k', area: 'Ripon',
+      tier: 'amber', avoid: [], tags: ['Trade'], notes: '', responses: 2, confirmed: false, isKey: false },
+    { id: uid(), name: '[Example] Knaresborough Community Board', size: '5.4k', area: 'Knaresborough',
+      tier: 'amber', avoid: [], tags: ['Community'], notes: '', responses: 0, confirmed: false, isKey: false },
+    { id: uid(), name: '[Example] Wetherby Local Life', size: '4.7k', area: 'Wetherby',
+      tier: 'amber', avoid: [], tags: ['Community'], notes: '', responses: 0, confirmed: false, isKey: false },
+    { id: uid(), name: '[Example] North Yorkshire Renovators', size: '9.8k', area: 'North Yorkshire',
+      tier: 'amber', avoid: [], tags: ['Home & Garden'], notes: '', responses: 1, confirmed: false, isKey: false },
+    { id: uid(), name: '[Example] Skipton Swap & Sell', size: '6.2k', area: 'Skipton',
+      tier: 'amber', avoid: [], tags: ['Buy & Sell'], notes: '', responses: 0, confirmed: false, isKey: false }
+  ];
+  scheduleSave();
+  render();
+});
+
+document.getElementById('addOneBtn').addEventListener('click', () => {
+  const name = prompt('Group name?');
+  if(name && name.trim()){
+    groups.push({
+      id: uid(), name: name.trim(), size: '', area: '',
+      tier: 'amber', avoid: [], tags: autoTagFromName(name.trim()), notes: '', responses: 0, confirmed: false, isKey: true
+    });
+    scheduleSave();
+    render();
+  }
+});
+
+document.getElementById('searchInput').addEventListener('input', render);
+document.getElementById('sortSelect').addEventListener('change', render);
+
+async function loadEvents(){
+  try{
+    const res = await window.storage.get(EVENTS_STORAGE_KEY);
+    events = res && res.value ? JSON.parse(res.value) : [];
+  } catch(e){
+    events = [];
+  }
+  renderEvents();
+}
+
+function scheduleSaveEvents(){
+  clearTimeout(window.__eventsSaveTimer);
+  window.__eventsSaveTimer = setTimeout(async () => {
+    try{ await window.storage.set(EVENTS_STORAGE_KEY, JSON.stringify(events)); } catch(e){}
+  }, 400);
+}
+
+function renderEvents(){
+  const list = document.getElementById('eventsList');
+  if(!list) return;
+  list.innerHTML = '';
+  const sorted = events.slice().sort((a,b) => (a.date || '').localeCompare(b.date || ''));
+  if(!sorted.length){
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.textContent = 'No events yet \u2014 add anything local worth a post: markets, fairs, school events.';
+    list.appendChild(empty);
+    return;
+  }
+  sorted.forEach(ev => {
+    const row = document.createElement('div');
+    row.className = 'event-row';
+    const dateLabel = ev.date ? new Date(ev.date + 'T00:00:00').toLocaleDateString('en-GB', {day:'numeric', month:'short'}) : 'No date';
+    row.innerHTML = `
+      <span class="event-date">${escapeHtml(dateLabel)}</span>
+      <span class="event-name">${escapeHtml(ev.name)}</span>
+      <button class="event-remove" aria-label="Remove event">&times;</button>
+    `;
+    row.querySelector('.event-remove').addEventListener('click', () => {
+      events = events.filter(e => e.id !== ev.id);
+      scheduleSaveEvents();
+      renderEvents();
+    });
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('addEventBtn').addEventListener('click', () => {
+  const nameEl = document.getElementById('eventName');
+  const dateEl = document.getElementById('eventDate');
+  if(!nameEl.value.trim()) return;
+  events.push({ id: uid(), name: nameEl.value.trim(), date: dateEl.value || '' });
+  nameEl.value = '';
+  dateEl.value = '';
+  scheduleSaveEvents();
+  renderEvents();
+});
+
+loadEvents();
+loadGroups();
+</script>
+</body>
+</html>
