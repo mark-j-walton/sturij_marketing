@@ -93,6 +93,14 @@ Real scheduled automation exists (Claude Desktop Cowork scheduled tasks, Claude 
 The context of a long or resumed chat drifts from reality. Before building anything, verify:
 
 - Note the real `main` HEAD; branch off *that*.  
+- **List ALL branches AND open PRs — not just `main`.** `main` being clear is *not* enough:
+  another session's unmerged in-progress branch is a collision waiting to happen. (This exact
+  thing happened 10 Jul 2026 — two sessions built parallel, divergent versions of this site
+  because one only checked `main`.) If a branch/PR already touches what you're about to build,
+  build on it or flag the clash — do not start a second parallel version.
+- **One owner per repo, and it's whoever has real tool access here.** Marketing dev lives in
+  the session with direct git/DB/deploy tools (Claude Code), not a browser-mediated one — the
+  disconnects and hallucinations that caused the collision came from split, tool-poor sessions.
 - Confirm the working tree/branch state and that `local == remote` for what you touch.  
 - Spot-check any "fact" you're about to rely on against the files/data, not memory.
 
