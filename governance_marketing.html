@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sturij — Governance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:#faf8f2; --card:#fdfcf8; --card-2:#f6f2e9; --tile-edge:rgba(28,24,20,.12); --groove-dark:rgba(28,24,20,.15); --groove-hi:rgba(255,255,255,.85);
+    --ink:#241f1a; --ink-soft:#3d3830; --faint:#6b6358;
+    --line:rgba(28,24,20,.13); --line-soft:rgba(28,24,20,.07);
+    --navy:#20384a; --navy-soft:#3f6472;
+    --gold:#d4aa58; --gold-bright:#e0bd76;
+    --success:#3f6f4e; --amber:#bf7d1c; --danger:#a3492f;
+    --shadow:0 1px 1px rgba(28,24,20,.03), 0 6px 22px rgba(28,24,20,.045);
+    --glass:rgba(251,249,244,.66); --glass-edge:rgba(255,255,255,.7); --grid:rgba(28,24,20,.07); --glow:rgba(201,158,73,.7); --glow-dot:rgba(201,158,73,.85);
+    --serif:'DM Serif Display',Georgia,serif;
+    --sans:'DM Sans',system-ui,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  :root[data-theme="dark"]{
+    --paper:#0d1117; --card:#191f28; --card-2:#12171e; --tile-edge:rgba(233,229,219,.10); --groove-dark:rgba(0,0,0,.38); --groove-hi:rgba(233,229,219,.07);
+    --ink:#e9e5db; --ink-soft:#b6b1a6; --faint:#7c8794;
+    --line:rgba(233,229,219,.15); --line-soft:rgba(233,229,219,.07);
+    --navy:#8ba9bd; --navy-soft:#6f93a8;
+    --gold:#d4aa58; --gold-bright:#e0bd76;
+    --success:#74b184; --danger:#d3805f;
+    --shadow:0 2px 4px rgba(0,0,0,.28), 0 28px 56px -22px rgba(0,0,0,.72);
+    --glass:rgba(26,32,41,.52); --glass-edge:rgba(233,229,219,.14); --grid:rgba(233,229,219,.08); --glow:rgba(224,189,118,.85); --glow-dot:rgba(232,202,132,.95);
+  }
+  :root[data-theme="light"]{
+    --paper:#faf8f2; --card:#fdfcf8; --card-2:#f6f2e9; --tile-edge:rgba(28,24,20,.12); --groove-dark:rgba(28,24,20,.15); --groove-hi:rgba(255,255,255,.85);
+    --ink:#241f1a; --ink-soft:#3d3830; --faint:#6b6358;
+    --line:rgba(28,24,20,.13); --line-soft:rgba(28,24,20,.07);
+    --navy:#20384a; --navy-soft:#3f6472;
+    --gold:#d4aa58; --gold-bright:#e0bd76;
+    --success:#3f6f4e; --amber:#bf7d1c; --danger:#a3492f;
+    --shadow:0 1px 1px rgba(28,24,20,.03), 0 6px 22px rgba(28,24,20,.045);
+    --glass:rgba(251,249,244,.66); --glass-edge:rgba(255,255,255,.7); --grid:rgba(28,24,20,.07); --glow:rgba(201,158,73,.7); --glow-dot:rgba(201,158,73,.85);
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0}
+  .page{
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 34px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 34px 100%,
+      radial-gradient(120% 80% at 50% -10%, var(--card-2), transparent 55%),
+      var(--paper);
+    color:var(--ink); font-family:var(--sans);
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+    min-height:100vh; padding:clamp(40px,8vw,104px) clamp(18px,5vw,48px) 88px;
+  }
+
+  /* matt tiles on the grid — solid surface, soft float shadow, light from BEHIND */
+  .val, .tree, .track, details.acc, .step{
+    position:relative; background:var(--card);
+    border:1px solid var(--tile-edge); box-shadow:var(--shadow);
+  }
+  /* the glow lives behind the matt tile — only its halo bleeds past the edge.
+     Very ambient; breathes slowly; eases up as the day gets later (JS → --glow-boost) */
+  .val::before, .tree::before, .track::before, .step.button::before{
+    content:""; position:absolute; inset:-18px; z-index:-1; border-radius:28px;
+    background:radial-gradient(56% 58% at 50% 62%, var(--glow), transparent 70%);
+    filter:blur(32px); pointer-events:none;
+    animation:ambient 8s ease-in-out infinite;
+  }
+  @keyframes ambient{
+    0%,100%{ opacity:calc(.18 * var(--glow-boost, 1)); }
+    50%    { opacity:calc(.32 * var(--glow-boost, 1)); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .val::before, .tree::before, .track::before, .step.button::before{
+      animation:none; opacity:calc(.24 * var(--glow-boost, 1));
+    }
+  }
+  .wrap{max-width:900px; margin:0 auto}
+
+  .eyebrow{font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--gold); margin:0 0 18px}
+
+  .topnav{display:flex; align-items:center; gap:28px; padding-bottom:28px; margin-bottom:8px;
+    border-bottom:1px solid var(--line-soft)}
+  .topnav-logo{width:26px; height:26px; object-fit:contain; opacity:.92; flex-shrink:0}
+  .topnav-links{display:flex; gap:22px; flex-wrap:wrap}
+  .topnav-links a{font-family:var(--mono); font-size:11.5px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--faint); text-decoration:none; transition:color .15s}
+  .topnav-links a:hover{color:var(--gold)}
+  .topnav-links a.current{color:var(--ink-soft)}
+
+  h1{font-family:var(--serif); font-weight:600; font-size:clamp(32px,5.8vw,54px);
+    line-height:1.05; letter-spacing:-.015em; text-wrap:balance; margin:0 0 20px; color:var(--ink)}
+  .thesis{font-family:var(--serif); font-size:clamp(18px,2.5vw,22px); font-style:italic;
+    color:var(--ink-soft); max-width:38ch; margin:0 0 40px; line-height:1.45}
+  .mast-meta{display:flex; flex-wrap:wrap; gap:10px 26px; font-family:var(--mono);
+    font-size:11.5px; color:var(--faint); letter-spacing:.03em; padding-top:16px;
+    border-top:1px solid var(--line); margin-top:8px}
+  .mast-meta b{color:var(--ink-soft); font-weight:600}
+
+  .foot-brand-row{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
+    gap:18px; padding-bottom:20px; margin-bottom:20px; border-bottom:1px solid var(--line-soft)}
+  .foot-brand{display:flex; align-items:center; gap:10px}
+  .foot-brand img{width:20px; height:20px; object-fit:contain; opacity:.9}
+  .foot-brand span{font-family:var(--serif); font-size:14px; color:var(--ink)}
+  .foot-links{display:flex; gap:20px; flex-wrap:wrap}
+  .foot-links a{font-family:var(--mono); font-size:10.5px; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--faint); text-decoration:none}
+  .foot-links a:hover{color:var(--gold)}
+
+  section{margin-top:clamp(56px,10vw,104px)}
+  .sec-head{display:flex; align-items:baseline; gap:16px; margin-bottom:20px}
+  .sec-num{font-family:var(--mono); font-size:12px; font-weight:600; color:var(--gold);
+    letter-spacing:.05em}
+  h2{font-family:var(--serif); font-weight:600; font-size:clamp(22px,3.4vw,29px);
+    letter-spacing:-.01em; margin:0; color:var(--ink)}
+  .sec-lede{color:var(--ink-soft); font-size:15px; max-width:60ch; margin:-4px 0 32px; line-height:1.65}
+
+  /* flow */
+  .flow{display:flex; flex-wrap:wrap; align-items:stretch; gap:14px}
+  .step{flex:1 1 150px; background:var(--card); border:1px solid var(--line-soft);
+    border-radius:14px; padding:18px 17px 20px; position:relative}
+  .step .k{font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--faint); display:block; margin-bottom:12px}
+  .step .t{display:block; font-weight:600; font-size:15.5px; color:var(--ink); line-height:1.25;
+    margin-bottom:7px}
+  .step .d{display:block; font-size:12.5px; color:var(--ink-soft); line-height:1.5}
+  .step.gate{border-color:color-mix(in srgb,var(--success) 45%,var(--line))}
+  .step.gate .t{color:var(--success)}
+  .step.button{border-color:var(--gold-bright); background:
+    linear-gradient(180deg,color-mix(in srgb,var(--gold-bright) 12%,var(--card)),var(--card))}
+  .step.button .t{color:var(--gold)}
+  .flow-note{font-size:13px; color:var(--ink-soft); margin-top:16px; padding-left:14px;
+    border-left:2px solid var(--gold-bright)}
+  .flow-note b{color:var(--ink)}
+
+  /* rules */
+  .rules{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line-soft);
+    border:1px solid var(--line-soft); border-radius:16px; overflow:hidden; box-shadow:var(--shadow)}
+  .rule{background:var(--card); padding:20px 22px; display:flex; gap:15px}
+  .rule .n{font-family:var(--mono); font-size:12px; font-weight:700; color:var(--gold);
+    line-height:1.7; flex:none; width:18px}
+  .rule .b{min-width:0}
+  .rule .rt{font-weight:600; font-size:14.5px; color:var(--ink); line-height:1.3}
+  .rule .rd{font-size:12.5px; color:var(--ink-soft); margin-top:4px; line-height:1.5}
+
+  /* validator */
+  .val{background:var(--card); border:1px solid var(--line-soft); border-radius:18px;
+    padding:clamp(24px,3.4vw,36px); box-shadow:var(--shadow)}
+  .val-grid{display:grid; grid-template-columns:1.2fr 1fr; gap:36px}
+  .checks{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:11px}
+  .checks li{display:flex; gap:11px; font-size:14px; color:var(--ink-soft); line-height:1.4}
+  .checks .tick{color:var(--navy-soft); font-weight:700; flex:none}
+  .checks b{color:var(--ink); font-weight:600}
+  .verdicts{display:flex; flex-direction:column; gap:12px}
+  .chip{font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.04em;
+    padding:9px 13px; border-radius:9px; display:inline-flex; align-items:center; gap:9px; width:fit-content}
+  .chip.go{color:var(--success); background:color-mix(in srgb,var(--success) 14%,transparent);
+    border:1px solid color-mix(in srgb,var(--success) 40%,transparent)}
+  .chip.stop{color:var(--danger); background:color-mix(in srgb,var(--danger) 13%,transparent);
+    border:1px solid color-mix(in srgb,var(--danger) 40%,transparent)}
+  .val-note{grid-column:1/-1; border-top:1px solid var(--line); padding-top:18px; margin-top:4px;
+    font-size:13.5px; color:var(--ink-soft); line-height:1.55}
+  .val-note b{color:var(--ink)}
+
+  /* knowledge tree */
+  .tree{background:var(--card); border:1px solid var(--line-soft); border-radius:16px;
+    padding:28px clamp(20px,3vw,30px); box-shadow:var(--shadow); font-family:var(--mono);
+    font-size:13px}
+  .tnode{display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 14px; padding:11px 0;
+    border-bottom:1px dashed var(--line-soft)}
+  .tnode:last-child{border-bottom:0}
+  .tnode .path{color:var(--navy); font-weight:600}
+  .tnode.child .path{padding-left:22px; color:var(--ink-soft); font-weight:500}
+  .tnode .desc{color:var(--faint); font-family:var(--sans); font-size:12.5px; line-height:1.4;
+    flex:1 1 260px; min-width:0}
+  .tnode .tag{font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold);
+    border:1px solid color-mix(in srgb,var(--gold) 40%,transparent); border-radius:20px;
+    padding:1px 8px; align-self:center; white-space:nowrap}
+
+  .skills{display:flex; flex-wrap:wrap; gap:9px; margin-top:16px}
+  .skill{font-family:var(--mono); font-size:12.5px; padding:7px 12px; border-radius:8px;
+    background:var(--card-2); border:1px solid var(--line); color:var(--ink)}
+  .skill .live{color:var(--success)} .skill .new{color:var(--gold)}
+
+  /* state */
+  .ships{display:flex; flex-wrap:wrap; gap:8px}
+  .ship{font-size:12.5px; padding:6px 12px; border-radius:20px; background:var(--card);
+    border:1px solid var(--line); color:var(--ink-soft); display:inline-flex; gap:8px; align-items:center}
+  .ship .dot{width:7px; height:7px; border-radius:50%; background:var(--success)}
+  .ship b{color:var(--ink); font-weight:600}
+
+  /* status board — collapsible accordions, traffic-light indicators */
+  .legend{display:flex; flex-wrap:wrap; gap:18px; margin-bottom:18px; font-size:12.5px; color:var(--ink-soft)}
+  .legend span{display:inline-flex; align-items:center; gap:8px}
+  .dot{width:9px; height:9px; border-radius:50%; flex:none}
+  .dot.green{background:var(--success)} .dot.amber{background:var(--amber)} .dot.red{background:var(--danger)}
+  .board{display:flex; flex-direction:column; gap:9px}
+  details.acc{background:var(--card); border:1px solid var(--line); border-radius:13px;
+    overflow:hidden; box-shadow:var(--shadow)}
+  details.acc>summary{list-style:none; cursor:pointer; padding:14px 17px; display:flex;
+    align-items:center; gap:12px}
+  details.acc>summary::-webkit-details-marker{display:none}
+  details.acc>summary:focus-visible{outline:2px solid var(--gold-bright); outline-offset:-2px}
+  .acc-title{font-weight:600; font-size:15px; color:var(--ink)}
+  .acc-sub{font-family:var(--mono); font-size:10.5px; letter-spacing:.05em; color:var(--faint);
+    text-transform:uppercase}
+  .caret{margin-left:auto; color:var(--faint); font-family:var(--mono); font-size:11px;
+    transition:transform .2s}
+  details.acc[open] .caret{transform:rotate(90deg)}
+  details.acc[open]>summary{border-bottom:1px solid var(--groove-dark)}
+  .acc-body{padding:13px 17px 16px; border-top:1px solid var(--groove-hi)}
+  details.acc:not([open]) .acc-body{border-top:0}
+  .item{display:flex; align-items:center; gap:12px; padding:9px 0;
+    border-top:1px solid var(--line-soft); font-size:13.5px; color:var(--ink-soft)}
+  .item:first-child{border-top:0}
+  .item .lbl{color:var(--ink); font-weight:500}
+  .item .st{margin-left:auto; font-family:var(--mono); font-size:10px; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--faint)}
+
+  /* dev/design scope tracks */
+  .tracks{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  .track{background:var(--card); border:1px solid var(--line-soft); border-radius:16px;
+    padding:24px 24px; box-shadow:var(--shadow)}
+  .track .lane{font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--gold); margin-bottom:8px}
+  .track h3{font-family:var(--serif); font-size:18px; font-weight:600; color:var(--ink); margin:0 0 6px}
+  .track p{font-size:13px; color:var(--ink-soft); margin:0 0 12px; line-height:1.5}
+  .track ol{margin:0; padding-left:18px; font-size:12.5px; color:var(--ink-soft); line-height:1.7}
+  .track ol b{color:var(--ink); font-weight:600}
+  .track .own{margin-top:12px; font-size:11px; font-family:var(--mono); color:var(--faint); letter-spacing:.03em}
+  .scope-note{font-size:13px; color:var(--ink-soft); margin-top:14px; padding-left:14px;
+    border-left:2px solid var(--gold-bright); line-height:1.55}
+  .scope-note b{color:var(--ink)}
+  @media (max-width:640px){ .tracks{grid-template-columns:1fr} }
+
+  /* sprint scope cards — proposed, for discussion, not decided */
+  .sprint-card{background:var(--card); border:1px solid var(--line-soft); border-radius:18px;
+    padding:26px 28px; margin-bottom:16px; box-shadow:var(--shadow)}
+  .sprint-head{display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:6px; flex-wrap:wrap}
+  .sprint-head h3{font-family:var(--serif); font-size:20px; font-weight:600; color:var(--ink)}
+  .sprint-status{font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--amber); background:rgba(191,125,28,.1); border:1px solid rgba(191,125,28,.3);
+    border-radius:999px; padding:4px 11px; white-space:nowrap}
+  .sprint-lede{font-size:13.5px; color:var(--ink-soft); line-height:1.6; margin-bottom:18px}
+  .sprint-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px}
+  .sprint-sub{margin-bottom:16px}
+  .sprint-sub p.eyebrow{margin-bottom:8px}
+  .sprint-sub ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px}
+  .sprint-sub li{font-size:13px; color:var(--ink-soft); line-height:1.5; padding-left:16px; position:relative}
+  .sprint-sub li::before{content:'\2022'; position:absolute; left:0; color:var(--faint)}
+  .sprint-sub.out li::before{content:'\2715'; color:var(--danger); font-size:10px; top:3px}
+  .sprint-blocker{grid-column:1/-1; border-top:1px solid var(--line); padding-top:14px; margin-top:2px;
+    font-size:13px; color:var(--ink-soft)}
+  .sprint-blocker b{color:var(--ink)}
+  @media (max-width:640px){ .sprint-grid{grid-template-columns:1fr} }
+
+  /* gallery — published artifact links */
+  .gal-group{margin-bottom:16px}
+  .gal-group .gh{font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--faint); margin:0 0 8px}
+  .gal{display:grid; grid-template-columns:1fr 1fr; gap:2px; background:var(--line-soft);
+    border:1px solid var(--line); border-radius:12px; overflow:hidden}
+  .gal a{background:var(--card); padding:12px 14px; text-decoration:none; color:var(--ink);
+    font-size:13.5px; font-weight:500; display:flex; align-items:center; gap:9px; transition:background .12s}
+  .gal a:hover{background:var(--card-2); color:var(--navy)}
+  .gal a::before{content:"↗"; color:var(--gold); font-size:12px}
+  .gal a:focus-visible{outline:2px solid var(--gold-bright); outline-offset:-2px}
+  @media (max-width:640px){ .gal{grid-template-columns:1fr} }
+
+  footer{margin-top:56px; padding-top:20px; border-top:1px solid var(--line);
+    font-size:12.5px; color:var(--faint); line-height:1.6}
+  footer b{color:var(--ink-soft)}
+
+  .theme-toggle{position:fixed; top:16px; right:16px; z-index:10; font-family:var(--mono);
+    font-size:11px; letter-spacing:.06em; text-transform:uppercase; cursor:pointer;
+    background:var(--card); color:var(--ink-soft); border:1px solid var(--line);
+    border-radius:20px; padding:7px 13px; box-shadow:var(--shadow)}
+  .theme-toggle:focus-visible{outline:2px solid var(--gold-bright); outline-offset:2px}
+
+  /* Slicker type — ONE sans voice for every micro-label; serif stays on headings,
+     mono is reserved for real code/paths (the tree, .skill, <code>). Fewer variations,
+     smoother rhythm. */
+  .eyebrow, .sec-num, .mast-meta, .step .k, .acc-sub, .track .lane, .track .own,
+  .gal-group .gh, .item .st, .chip, .caret, .theme-toggle{ font-family:var(--sans); }
+
+  /* No hard border on the tiles — the matt fill + soft float shadow define them.
+     A whisper-faint top highlight is the only edge. */
+  .val, .tree, .track, details.acc, .step{ border:1px solid transparent; }
+  .eyebrow{ letter-spacing:.16em; font-size:11.5px; }
+  .step .k{ letter-spacing:.13em; }
+  .track .lane{ letter-spacing:.13em; }
+  .acc-sub{ letter-spacing:.08em; }
+  .mast-meta{ letter-spacing:.02em; }
+
+  @media (max-width:640px){
+    .rules{grid-template-columns:1fr}
+    .val-grid{grid-template-columns:1fr; gap:20px}
+  }
+
+  /* ===== Shared shell chrome (matches index.html exactly) ===== */
+  .shell-rail{position:fixed;top:0;left:0;bottom:0;width:76px;background:linear-gradient(180deg,#20384a 0%,#182a37 100%);
+    display:flex;flex-direction:column;align-items:center;padding:18px 0;z-index:100;box-shadow:2px 0 16px rgba(0,0,0,.12)}
+  .shell-rail-nav{display:flex;flex-direction:column;gap:6px;flex:1;padding-top:6px}
+  .shell-rail-btn{position:relative;width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:rgba(250,248,242,.62);transition:background .15s,color .15s;background:transparent;border:none;text-decoration:none}
+  .shell-rail-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7}
+  .shell-rail-btn:hover{background:rgba(250,248,242,.08);color:rgba(250,248,242,.95)}
+  .shell-rail-btn.active{background:rgba(212,170,88,.16);color:#d4aa58}
+  .shell-rail-btn .tip{position:absolute;left:60px;top:50%;transform:translateY(-50%) translateX(-4px);
+    background:#241f1a;color:#faf8f2;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;
+    padding:7px 12px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;
+    box-shadow:0 6px 20px rgba(0,0,0,.22);z-index:10}
+  .shell-rail-btn:hover .tip{opacity:1;transform:translateY(-50%) translateX(0)}
+  .shell-rail-foot{width:36px;height:36px;display:flex;align-items:center;justify-content:center}
+  .shell-rail-foot img{width:30px;height:30px;object-fit:contain;opacity:.95}
+  .shell-topbar{margin-left:76px;height:88px;display:flex;align-items:center;padding:0 40px;
+    background:linear-gradient(115deg,#20384a 0%,#182a37 45%,#8b5e2c 130%);box-shadow:0 4px 20px rgba(32,56,74,.18)}
+  .shell-topbar img{height:34px;object-fit:contain}
+  body{margin-left:0}
+  .page{margin-left:76px}
+
+</style>
+</head>
+<body><button class="theme-toggle" id="tt" aria-label="Toggle colour theme">◐ Theme</button>
+
+<nav class="shell-rail">
+  <div class="shell-rail-nav">
+    <a class="shell-rail-btn" href="index.html">
+      <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      <span class="tip">Home</span>
+    </a>
+    <a class="shell-rail-btn" href="group_ledger.html">
+      <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+      <span class="tip">Group Ledger</span>
+    </a>
+    <a class="shell-rail-btn" href="group_reach_map.html">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 21s-7-6.4-7-11a7 7 0 0 1 14 0c0 4.6-7 11-7 11z"/></svg>
+      <span class="tip">Reach Map</span>
+    </a>
+    <a class="shell-rail-btn active" href="governance_marketing.html">
+      <svg viewBox="0 0 24 24"><path d="M12 3l8 3.5v5c0 5-3.4 8.7-8 9.5-4.6-.8-8-4.5-8-9.5v-5L12 3z"/></svg>
+      <span class="tip">Governance</span>
+    </a>
+    <a class="shell-rail-btn" href="sturij_knowledge.html">
+      <svg viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22.5v-18z"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/></svg>
+      <span class="tip">Strategy & Knowledge</span>
+    </a>
+  </div>
+  <div class="shell-rail-foot"><img src="data:image/png;base64,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" alt="Sturij"></div>
+</nav>
+
+<header class="shell-topbar">
+  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA5gAAAEACAYAAADWYtm6AAAgAElEQVR4nOzBMQEAAADCoPVPbQhfIAAAALhVAwAA///swzENAAAAw6D6Vz0ReyFBAAAAftUAAAD//+zDMQ0AAADDoPpXPRF7IUEAAAB+1QAAAP//7MMxDQAAAMOg+lc9EXshQQAAAH7VAAAA///swzENAAAAw6D6Vz0ReyFBAAAAftUAAAD//2L8////aEiOglEwCkbBKBgFo2AUjIJRQD+gwMDAkDBMwnsBAwPDAwr0O0DxcAANw8Qf5AMGBgYAAAAA///s19EJACAIANFrtCZrtBotXMGiQO79C+rfGZiSJEnSWxFUs8jPO7AO5iPKxsV9fmpF7sgDNgAAAP//7M4BDQAACMCgz/6hraEbJGC+xgEAADikWgAAAP//7NcxAQAAAMKg9U9tCF9ogWACAADwqwYAAP//7NcxAQAAAMKg9U9tCF9ogWACAADwqwYAAP//YhkNxlEwCkbBKBgFo2AUjIJRMApGwSgYVMCAgYFBgAoO+sDAwHABiY/rQCWQGpBaUgCmGxkYGAAAAAD//xrtYI6CUTAKRsEoGAWjYBSMglEwCkbB4AL9VDpdF3QAE+ggJhjAdbgU6DTgRBLNXg89ERkBGBgYAAAAAP//7N2xDQAACAIwTvT/a4yzk7PtFwQSTGQBAAB+q2NjOjc7K1wmSQMAAP//7NoxCgAgDAPA/tT//0KyFVFxdLibS/eQaDABAAD+0metqwTBzFO708T19qfLz4TMNJkvxvaoqiYAAAD//xrtYI6CUTAKRsEoGAWjYBSMglEwCkbB4AKFeFyD7R5VQzJcD1o6Ox9pJhJ0HykxHUxQ5xa2fPcBdGktxD0MDAwAAAAA///s2yEOADAIA8D+mDftpwQ15PzuFAZRSVJUZAEAAP50Vuo5NF/+PmvNs3+rskkaAAD//+zbwQkAIBADwfT/smTJQxSxA2c6uOcSTmACAAD8aVxXn/H40pjs/+XSxXMHZpIJAAD//+zcsQ0AMAwCMP6/umKomqEfxF5zQSTAgwkAALBTe5szFtse5ne8Z9yvLtQ2IvskOQAAAP//7NyxDQAwCAOw/L/xcYeqEurAA9gfZIxAUTABAAD2eUNB9SWfrph93Ke/115JDgAAAP//7N3BDQAQFIPhjs5mRpOGXnBw5v8SC7iI1CtKfgAA5ZEdaHMBAPCTLUW8lG9J3DTr8zPzl34CWw+ttE42cyldk89BUgcAAP//Gu1gIjaz6iMFGPLmVlhj5SBS4GM7AngUjIJRMAqGKqgfRjE32sEcBaNgFIyCUTDSALkdTGQAmsWE9YFwXVmCvDwWfdYTAhgYGAAAAAD//xqpHUwBaM88HssdMugAFtDInc4H0EbMQVxrj0fBKBgFo2AUjIJRMApGwSgYBaNgiIAN0D4NbP8laJksegfTHomN/ToTBgYGAAAAAP//7NyxDYAgEEbhN7KbOIIjOBIjuAL5Ey6x0FhYUPC+hu76lwNWe4OZsNyBNs6vuHxTvycdY9YFnMD2Y6YkSZIkzZJrsSVNc++a2mpG4vJ5wQZ0AAAA///s3b0JACAMhNGMnA0dwZUkcsIVFhaChd8bId2Rv58CZioMps0b37IKXqG1K3A27TWd/JIBAAAAgJeqi+mrgH7sx8djt8d9pogYAAAA//8aCR1MAejsYj8NOpb47HSA7msCdTT/Q+l+aOTQyx2jYBSMglEwCkbBKBgFo2AUjIJRQAwAdS6R91Yi91tgy2NhZ9JgBwwMDAAAAAD//xruHUwFaMcugAi1tAYO0NnT9dAZzvPQDmcCgbtmRsEoGAWjYBSMglEwCkbBKBgFowAXAHX6qAWQ91bCVmkiL4/FebgPGDAwMAAAAAD//xrOh/wYQDuXg3W2EH1dM+zgoItQmpoJZRSMglEwCkbBKBgFo2AUjIJRMDzBRyr6CtQnAXUyQZNgIABakQlaKgvqU8HkcAMGBgYAAAAA//8arh1MAegBPENpKaoCUkQyQKeoD6BdjzIKRsEoGAWjYBSMglEwCkbBKBgFtASgPZawfgnySku8ey/BgIGBAQAAAP//Go4dTAHozOVQP80VNhWNvLwX+WqUC6P3cY6CUTAKRsEoGAWjYBSMglEwCqgMYH0N5P4UqN8xgaA9DAwMAAAAAP//7NyxDQBACAOx7D/1twg9HRWyt0iRu/bBvDIuJzUcVH+cwkEAAMCW/rXshdm/JA8AAP//Gk4zmMO9c4kNwPZxFkDlHqDNcuK8n2YUjIJRMApGwSgYBaNgFIyCUTAsAC1WNYL2WhLcb4kBGBgYAAAAAP//Gk4dzP4R1rnEBmD7OGFrph9Ap7cPjh4cNApGwSgYBaNgFIyCUTAKRsGwAKB2PSOZHiFXHz4AuvsfhBkYGBgYAAAAAP//Gi4dzPloB+SMAghQgGLYPs4PaB3O0YODRsEoGAWjYBSMglEwCkbBKBgF1AEMDAwAAAAA///s3KERADAMAzGPkP2nLWlZQENz0hYP7A2BKS7/1d1xvi1nmqdax0EAAMBckgMAAP//7N2hDQBADAOx7D9dR3pUUlLwqJK9xYEo1wNTXP7r4Gw1/jjtOAEAgF2SBwAA///s2zENADAMA0FDCrRCLpTu6Zwh0h2Ll+XNgXnE5YhqX9bbVk4/TgAA4JfkAQAA//8aqh3MBOihPqOA9gD94KAPWJbVjoJRMApGwSgYBaNgFIyCUTAKRjpgYGAAAAAA//8aqvdggjo1jaPLNwcECEAPDeqHXgvzH0oXQDujo2AUjIJRMApGwSgYBaNgFIyCkQgYGBgAAAAA///s3TERACAQA8GzghNQjCSQQvPVlz80DLcuUiR5NWDumMJtwKh+tOiaHoFzATN1OiVJkiT9ADgAAAD//2L8////cPEqbGYtf/Q+zEEBQLPMiaOzzKNgFAwJMFwqgkbke7hGwSgYBaNgEAOBYdRevUDhLQQKw2gV3IjfOsbAwMAAAAAA//8aKh1M2MEzG4hMwArQjmYCNAOPgoEBH6ANvgmj4T8KRsGgBqMdzFEwCkbBKBgFo2AUUA4YGBgAAAAA///s20ENACEMBdGRAE6wgpRVVKuE5AvgRLJknoTemk7/kMiO/PhVEsw6SDD31ewDOjCzmOq+lnS2nL0kSZL0OGABAAD//xrsHUxY5xI2CykAnZXcD+1sNhAxpb4B2slUhHY6R5ds0h+A4uz86GzyKBgFo2AUjIJRMApGwSgYBcMYMDAwAAAAAP//GswdTAW0ziU2+Xqkg2UI3Yn5ALpUE9TRNIQeDETJevFRQBqADRaMglEwCkbBKBgFo2AUjIJRMAqGI2BgYAAAAAD//xqsHUwBaKeR2BmvAOgyzPdQmtCm6QvQA2gUofTohlz6AIPR5bKjYBSMglEwCkbBKBgFo2AUDFPAwMAAAAAA//8ajB1MAehMFzknawkgLcc8D72bEV8n9QN0JtMR2tkcvVuT9iABGi+jYBSMglEwCkbBKBgFo2AUjILhBBgYGAAAAAD//+zcwQkAIAwDwG7orG7mCCL4FrWfPu62CAmp9iKbCZcnK0T2h7Of1Yi2i9ktf8aeKQvzUIMXWQAgLyImAAAA///s3LENACAMA7C8ykWcwossZWcACSH7i6hpXrtg3giXqaA46l+zbw4DtVqhbVWp5Zy1LgsAAPwiyQQAAP//GkwdTGL2TlIKFKDLM+9DO7OE7smELaE1hOIJowcDUQ0EEHHdzCgYBaNgFIyCUTAKRsEoGAWjYKgABgYGAAAAAP//GixLZOcP4HLUD9AZy4UkHPaTAF1CG0Bjtw13sAA6QzwKRgEuoEDEigNC4MLowBBBMLpEdhSMglEwCkbBKBgFlAMGBgYAAAAA//8aDB3MgexcogPQnsCJ0A4nMfsDFaCdzHwqNIJHKhAcbfyPSACbvYbR+tDVBAJ0WMkAG0gCpbuLSGIfRvBy+NEO5igYBaNgFIyCUTAKKAcMDAwAAAAA//8a6A7mYOpcogPYrCaxBwOBGsrx0A4nsderjALIDOaC0XAYtsAAikEDMPZUmpGkNXgA7WhehNIXRsCBVKMdzFEwCkbBKBgFo2AUUA4YGBgAAAAA//8ayA5mwhC5ExG2D3MhkbMbAtBOZvzoHkOiAKgDHzgE3DkKiAMOUGw/zNI/rNN5kIQVDkMJjHYwR8EoGAWjADswIGLiYHQrxigYBTDAwMAAAAAA//8aqA7mUOlcooMLSEtoiSlIFKDLZwNGl9DiBYyD2G2jAD9QQLrWZyQNqDyAlgMHSVjlMJjBaAdzFIyCUTAKIJ1J2CCpAQltN0cSzvEYBaNgeAMGBgYAAAAA//8aiFNkh2rnkgFa2IDc/h5KEzrkB9QILWRgYFCEztINh4YoLcDoYUlDC8BOYz6PdPXPSJuth4XBeqTygNZ7RwmBBmhHkRw8XEA9BWFADbyfzvE22PBgKQf2D5PwJCc9DYcwoMTf5AABaD68D63X+uk0MeAwmvfhYDiVgyMeMDAwMAAAAAD//6J3B3Mody7RAfLdmg1E3q0ZCD3UpnD0bk0U4D+I3DIKcIMEaMUP61QOdIdqsAABaNjAOtyErj8aBaNgFIyCUTDwALljWT+60mwUjAIqAQYGBgAAAAD//6JnB9NgGHUukYECtGBCvlsTH/gAvU8TdrfmgtF1+6N7VQcxQK6A54/GFUGgAA0n2MDTaEdzFIyCUTAKBh9wgA4K1o+W06NgFFAZMDAwAAAAAP//olcH02AAljwMBHBAW0JLaIbnAvQUVUEoPVKX0CqMzoYNOjA6sksZEEAaeBrtaI6CUTAKRsHgAf3QNulovTYKRgEtAAMDAwAAAP//okcHE9a5HEkNLPQlcwVE+H8BdAmtIvSgiuF+LQI6GN2HOXhAAVLHcrRjRBmAdTTPj6bxUTAKRsEoGHAwH1rHjYJRMApoBRgYGAAAAAD//6J1B3Mkdi7RgQJ0tOw9dM8mMQcDNUA7mo4j6I7I0X2YAw8ckA44GO1YUhcoQPP/+tGwHQWjYBSMggEBg/nu9VEwCoYPYGBgAAAAAP//omUHU2C0c4kBApBOnewnYnnGAbQltMP5YCBSjgMfBdQFAkhLhkaXKtMWBEBnh0dnM0fBKBgFo4B+YLRzOQpGAb0AAwMDAAAA//+iVQdztHOJHwggLUM8T8Spkx+gM5mG0JnNCcP0YKDRA2ToD2CrDEaXDNEPCEAHmkbvaxwFo2AUjALag4LRzuUoGAV0BAwMDAAAAAD//6JFB1NgdCaEJGCAdOokMad0wu7WFByGd2uOLpOlL0gYzasDCupHl8yOglEwCkYBTYEDdIXOKBgFo4BegIGBAQAAAP//onYHc7RzST4QQLtnkJy7NYf6wUCjywbpBwqgAxqjnZuBBQGjqz1GwSgYBaOAJkBgmF6PNwpGweAGDAwMAAAAAP//onYHc/1o55IqAPluzfUk3K2pOAzu1hztZNIezB8d0R1UYPQwtFEwCkbBKKA+GL1iaxSMgoEADAwMAAAAAP//omYHc/QSdtqAADLv1lSE0geGmH9Hl8nSFowedDA4wWgncxSMglEwCqgHHEbPFhgFo2CAAAMDAwAAAP//olYHc7TRSnuAfLfmeSLu1oQdDOQ4xO7WHB2koB3oH82ngxoYjM4sj4JRMApGAVXAaFk6CkbBQAEGBgYAAAAA//+iRgdztHNJf2BAwd2agYP8bk2F0WXWNAEJo6O5QwIkjJ4uOwpGwSgYBRSBhNF2xCgYBQMIGBgYAAAAAP//orSDOTojMvAAdrfmfSLv1twwBO7WHN2HSV1gMHrQwZAC9aMz+aNgFIyCUUA2qB8NulEwCgYQMDAwAAAAAP//oqSDOTojMriAAtLdmvtJvFvTcJDdrTm6D5N6AHbn4igYWmD0+pJRMApGwSggHSSMHuwzCkbBAAMGBgYAAAAA//8it4OZMDojMqiBA4l3a15AulszcRDcrWkwWkFQDcwfDcshCUaP1x8Fo2AUjALSwejs5SgYBQMNGBgYAAAAAP//IqeDOdq5HDoA/W7NAiI6Gwug+zQVB/huzdElgpQDh9HlxkMaBIzmg1EwCkbBKCAajM5ejoJRMBgAAwMDAAAA//8itYM52rkcukABukeT2Ls1HyDdrek4AHdrji6TpRyM5tWhD0bjcBSMglEwCogD+aPhNApGwSAADAwMAAAAAP//IqWDOXqE/vAByHdr9hNx2tqBAbhbc3TmjTLQMDqSOyyAwuhBaqNgFIyCUUAQOIyeHDsKRsEgAQwMDAAAAAD//yK2gzl6CfjwBALQZbOwuzWJPRgIdrfmBBovoR3tZJIHBEZHcocVGN1TNApGwSgYBfhB/Gj4jIJRMEgAAwMDAAAA//8ipoM52rkcGcAAaVZzPpF3axbS+G7N0WWy5AFCAwWjYGiB0VnMUTAKRsEowA0ERsvIUTAKBhFgYGAAAAAA//8i1MEc7VyOTJCAdLcmMUstke/WLKTi3ZqjB5yQB0ZnL4cfGJ3FHAWjYBSMAuxgtHM5CkbBYAIMDAwAAAAA///C18EUGL2LbcQDBWjD9j6Rdyl+gC6bhd2tSenBQAqjeypIBgGjey+HJVAYHXAZBaNgFIwCrGB0eewoGAWDCTAwMAAAAAD//8LVwRSAzlyONlRHAQxMJDEkLiDNalJyt+boPkzSwOiy4uELRhtRo2AUjIJRgAoMRgeiR8EoGGSAgYEBAAAA///C1sGEdS5HM+wogAFsJ8fCZrgLiJjlRr5bs5HEg4FGO0zEg9F9KMMbjO6tHQWjYBSMAlQwOvA2CkbBYAMMDAwAAAAA///C1sEk5tqKUTByQCKOA3zWQ2cX+6EHA60n8mCgBhLv1jQYnUknGowuoRz+YHRGfxSMglEwChBgtEwcBaNgsAEGBgYAAAAA//9C72AmjM6AjAIkUIijczkfS2cmANrJhN2tSahTiH63Jr6DgUY7TsSB0dne4Q9G43gUjIJRMAogYHQAehSMgsEIGBgYAAAAAP//Qu5gCkA7BqNgFDBAO5YTsITEfAKDELC7Ne+TeLemIdLdmuizmqONauLAaEd8+IOA0WWyo2AUjIJRAAajy2NHwSgYjICBgQEAAAD//2JBclf/aMNlFEDBAuisIjroJ3GGG3a35nyomQux7OVEBrC7NQuhDel4KD26BIYwUBjmI7kHoAMPF/Go0YeWYcO9o+1AwaFZo2AUjIJRMFzAaNtgFIyCwQgYGBgAAAAA//+CdTBHL/IeBTCAq3OZAJ2ZJBfAll8/gHY0FxA47GcDFMMOrjGg4v2awxEMt33TD6AnFx8gM94NoB2x+GEYNv6jHcxRMApGwQgHo8tjR8EoGKyAgYEBAAAA//+CLZEdvZh9FDBAG/KFWEIiAToLSQ2AfLfmfiIGNmB3a452LvGD4dKJegA9AEqRwni/gHQnqyOBmfOhBkaXQo+CUTAKRjoYnb0cBaNgsAIGBgYAAAAA//+CdTBHM+oouABtiKPvf6Rm5xIdOEDNfg+lR08vJh/oD1WHIwHYXlxqdwYPQNM2tsGToQgURrczjIJRMApGOBg9m2EUjILBChgYGAAAAAD//2IaXWYwCvB0Lg3odPATbBnseSgm5m7NUYAZhkMZwE4VJnRtDSUANqNJSzvoBUZnMUfBKBgFIxUojA5Ij4JRMIgBAwMDAAAA//9iGp29HPEA1NgOxNG53D8AHRcDEu/WHAUQMNQ7HNj2/dICXICm96EORhtXo2AUjIKRCkYH2EbBKBjMgIGBAQAAAP//AnUw7UcjacSCD9CZS/TDdgaqc4kOYHdr3ifybs1RMDTBBgIHPlEbgGZLG4d4Whktt0fBKBgFIxWMLo8dBaNgMAMGBgYAAAAA//9iGh0JH7EA1rlEP0RFANqpG0xLLhWQ7tYcXTqLCYZ6xxvf1SO0Ag1D+OCoC6OHXo2CUTAKRjAYncEcBaNgMAMGBgYAAAAA//9iGW2wj1gQiKNzuX+Qd1gCoIfBjAIEGOodzIE64bUQmt4HM3gAzacXoeE0nE7DHQWjYBSMAlKBw2i7dRSMgkEOGBgYAAAAAP//YhmNoxEJErE0VGGdy8E+o+0/2sEcBVQCB6AduMHSQf8AddNFpPs/h8OBRKNgFIyCUUAtMDp7OQpGwWAHDAwMAAAAAP//Gu1gjjyQiKODtn6ILJcerVyGH3AYwJm5iXQ6KRkdfIB2IA8iLXmldB8qJWFYT6HdgwUcgIbpQAF67iUeBaNgJILR/eejYBQMdsDAwAAAAAD//xrtYI4sUIijczl/CHXcBKDLZDcMAreMAuoA+QEMxwV06mAeQFrqSqs9lJQsoR0uHcyD0P21o2AUjILhBwRGB5lHwSgYAoCBgQEAAAD//xrtYI4csAB6DyA6mA+9g3IoAfvRDuawAgPZYIAtS6WmGy5gmZ0cBaNgFIyCUUAZGO1cjoJRMBQAAwMDAAAA//8a7WCODLAAxz2D/UOwc8kAncEsHATuGAXUAbBTgrENgNADHKSg4XIBbWZy9BCeUTAKRsEooA0YXR47CkbBUAAMDAwAAAAA//9igTaKRq8qGb4AV+cyAdqoH4pAAZpmR2eGhg+oR1pGSm9wgMglougnuo4ewjMKRsEoGAX0A6MzmKNgFAwFwMDAAAAAAP//Gu1gDm9wAcdMXwJ0aexQBg6jHcxhBWCnGGO7m5XWANusI/IhPKOdyVEwCkbBKBhYIDDaVh0Fo2CIAAYGBgAAAAD//2KBNqCG4jLJUYAfXIA21tEbxcOhcwkC8QO4pHKwgeFyciWsk9k4AHELmul/SMUTXUfBKBgFo2AUUA+Mdi5HwSgYKoCBgQEAAAD//2IaPSxlWAJcnUuDAbqSgRbAYPSyZTgYTp0hAWga3U/n5VCJ0NNHN4x2LkfBKBgFo2DQgdHlsaNgFAwVwMDAAAAAAP//YkJaCjYKhgcAxWcgjs7l/mHWKQsYBG4YBbQBDtD0Su+O5igYBaNgFIyCwQdGD/gZBaNgqAAGBgYAAAAA//9igtIbRyNtWIAP0JlL9BmY4di5BAH/QeCGwQKG6yARrKN5H3oo1eis9SgYBaNgFIw8MDrQOApGwVABDAwMAAAAAP//gnUwR5fJDn3wAccBKaAG+fph2jAfrXAQYLgfQKMAXTr7HpqeE0Y7m6NgFIyCUTAiwGhdPwpGwVACDAwMAAAAAP//gnUwRw+1GPogEEfncj+0cT4cgcDoMlk4ODhI3EEPEAA9qOo9NH0XjB4AMQpGwSgYBcMGgDqU/5Hw/tGoHQWjYAgBBgYGAAAAAP//YkJy7ugF4UMXJGKJP1jncrg3vEf3ZUDASB0gcoDObJ6HLqOdD53dHK6DKqNgFIyCUTAKRsEoGAWDFzAwMAAAAAD//0LuYI7uwxyaIBF6xQI6WD9CZnVGZzAhYPSgLkinEnYNz/3RDucoGAWjYBSMglEwCkYBnQEDAwMAAAD//2JBsnJ0H+bQA4U4OpfzR9CeBQVoR3qkd7AuQPdhju5LRABYhxN2z+8H6Ez/RSg9umpjFIyCUTAKRsEoGAWjgJqAgYEBAAAA//9iQjNvtJM5dMACHJfRz0dqUI8UMHoAAASMdpjwA9ie3Xro8nHY3p6G0TQ0CkbBKBgFo2AUjIJRQAXAwMAAAAAA//9C72COLpMdGmABdGksOugfgZ1LEIgfBG4YDGA0/5IOHJA6nLATagtGl9SOglEwCkbBKBgFo2AUkAEYGBgAAAAA//9C72COzoAMfoCrc5kAbRiPRGAwujQUDEbzL2UANsPZj7SHs390dnMUjIJRMApGwSgYBaOASMDAwAAAAAD//2JBU/oAupdr9Mj/wQkuQPddogPYwSYjGQTg2I86ksADaCdztENEHaAAHbQpgO7f3ACdJR7dSjAKRsEoGAVDC8DOKQDRH5HYMIDOHwWjYBSQCxgYGAAAAAD//0LvYDJAG1CjHczBB0AFnyOWC/VHO5cQ4D/awQSDhaMdTJoAAaQDg0Y7m6NgFIyCUTB4AayMhh3oNtpxHAWjgJ6AgYEBAAAA//9CXyLLMNpgGpQAV+fSYLRzCQejnSoIWIAlnYwC6gJYZ3M90jLa0T2bo2AUjIJRMHDgA7T+M2RgYBCEbiWaMNq5HAWjYAAAAwMDAAAA///C1sG8MIIvbR+MAFRoBuLoXO4f6YGDBARG78SEg4mDxB0jAcCW0YI6mudH6CFbo2AUjIJRMFAA1DZqZGBgUIR2Kkc7lKNgFAw0YGBgAAAAAP//wtbBZBg9LGTQgA/QmUv0Dj+sczl6sA0qsB9MjhlAMGF0FnNAAGxFwXvo1Sejs5qjYBSMglFAO3AAOmPZMFrnjYJRMIgAAwMDAAAA///s3aENADAMA0GPkP1RN+sqBU1IJbNKJn9bvAPiApN3B3kTl+8aV8SlxQXzmkUXGdWvT3YHJ6EJAH8tM8ADSJN0AAAA///C1cEc3Yc58CBwtHNJMlAYPaAKDkb3ngwOkDDa0RwFo2AUjAKqAlzXtY2CUTAKBgNgYGAAAAAA///s3LENACAMA0GvyoaMSIVogIaCFHdLWC9FOQVmROZXbXOmPONSQN159rMY4DqEJsC7btuguCQDAAD//8LXwRxdJjswIBHHdRujnUviQPxQcCSdwIXRpbKDDiRADwNqGOkBMQpGwSgYBSSCD6Ody1EwCoYAYGBgAAAAAP//wtfBHD3oh/4AV+dy/mjnkmhgMLqEGAU0jOblQQeQ92iOzriPglEwCkYBcWDi6GE+o2AUDAHAwMAAAAAA///C18F8MLqHi65gAZ7O5ejVB6SB0UY7KsC2n3cUDDxQgK5M6B8dFBkFo2AUjAK84AP0bIFRMApGwWAHDAwMAAAAAP//wtfBZBhdJks3gGvD+mjnkjwwOtuLCnDdpToKBgcogC6bHU23o2AUjIJRgB1sGK3DRsEoGCKAgYEBAAAA//8i1MEcPeiH9gBX5zJhtHNJNhi9DxMTPIAe6T5aQQ9OoADtZI7m+VEwCvx/WowAAB76SURBVEbBKMAEC0fDZBSMgiECGBgYACLUwbwwescQTcEFPJ3L+cPIn6NgcIALo/eGDXowfzTvj4JRMApGAQr4MHqWwCgYBUMIMDAwAAAAAP//ItTBZBjN1DQDsMY+OhjtXFIORvdg4gagdGc4uidzUIOE0ftuR8EoGAWjAA5G66tRMAqGEmBgYAAAAAD//yKmgzm6D5P64AKO5YoGo53LUUAH8AGa/rAdKjUKBgdwGO1kjoJRMApGARgcHA2GUTAKhhBgYGAAAAAA//8ipoM5ug+TuuADns7l/qHuuVEwZADsPrHC0X2ZgxYYjHYyR8EoGAWjYHRbxygYBUMKMDAwAAAAAP//IqaDyTDayaQaINS5HG1IUgeMLqchHkyApsnRMBucYHRVwygYBaNgpIPRDuYoGAVDCTAwMAAAAAD//yK2gzm6TJZy8AFHQ15gtHNJdTA6I0cagO3LbBwNu0EJAqB3ZY6CUTAKRsFIBKMDoKNgFAwlwMDAAAAAAP//IraDOXrQD+VgtHNJPzA62kkeaIB2NEf3Zg4+UADtaI6CUTAKRsFIA6MDn6NgFAwlwMDAAAAAAP//IraD+WB0BIkikIinczl6uTr1wcXh5iE6ggfQ9Oo4OrA06MD80cGoUTAKRsEoGAWjYBQMasDAwAAAAAD//yK2g8kwukyWbJCIY0ZotHNJOzC6Z5hycADayRztaA4eIDC6H3MUjIJRMMLA6OTGKBgFQw0wMDAAAAAA//8ipYM52mgnHeDqXM4f7VzSDDwYXSJLVTDa0RxcIGB0qewoGAWjYASB0eWxo2AUDDXAwMAAAAAA//8ipYN5YbThThJYgKdzmTCI3T3UwcKRHgA0ArCOpiI0XY9W+gMHRg/8GQWjAD8YHcAdBaNgFIyCgQIMDAwAAAAA///s3LEJACAMBMCMops7qo02gqJFsLkbIvA8n5eAGRqMa220lyvhMp8HNbnmRrNutsXkK+4IHNkqA/wSER0AAP//IrWDOboPkzDA1blMGG0U0hwsGJ1lpxv4AA1vQyieMDqrSVdQP4L8OgpGASlgtHM5CkbBKBgFAwkYGBgAAAAA//8itYM5ug8TP7iAp3M5ejgHbcEH6D2Oo4D+AJTuCxkYGAQZGBgCR5fQ0gWAZjEdRoA/R8EoIBWMLo8dBaNgFIyCgQQMDAwAAAAA//8itYPJMNrJxAkuQPeooYPRziV9wMTR2ctBATZAB1mQO5uj8UIbED8cPTUKRgGFYLSDOQpGwSgYBQMJGBgYAAAAAP//IqeDObpMFhPAOpfoszYGo51LugDQ3uCGEeDPoQY2IO3XNITOMI/u2aQeSBhdDjgKRgEGsB8NklEwCkbBKBhAwMDAAAAAAP//IqeDOXrQDyr4gKdzuX+gHTcCwAfoTNkoGNzgAnQQwBA6u5k4OrtJFTC6THYUDCYwGAY8RvPEKBgFo2AUDCRgYGAAAAAA//8ip4P5YHQWAg4IdS5HZxdoC3CF/ygY/PG2AG12sxA64zkal6QB/6Hk2FEw7MFAL081GK13R8EoGAWjYIABAwMDAAAA//9iIdMJB0b3OcA7N+idbYHRziVdAK7wHwVDD1yA4glQlxtAZyH0obTCaJziBKOzNaiAfzA5ZgQC/QH28ui+5FEwCkbBKBhowMDAAAAAAP//IreDCbrMvmCER+Bo53JgwWjncviCC2hxqwDtdNpDO1QjfXALGShAy5vRmV8IGE0bAwsGOvxHrwIbBaNgFIyCgQYMDAwAAAAA//8it4N5AdqgGakdKWwXzMM6l6MNHNqD0Qv+RxZ4AMWwE6xhV3TYj85wgoHB6N54OBgd3BtYABsMGojyefTQq1EwCkbBKBgMgIGBAQAAAP//ImcPJgyM1OtKYIeToIPRziV9AK7wHwUjBzzAsYdzpA46jC6TRYDRMnjgwUAtU60fTIEwCkbBKBgFIxYwMDAAAAAA//+ipIM5Eq8rwdW5mT/asKELGO1cjgJsALZ/0xDa4RxpnU35QeCGwQQCRnoADDAYiPAvGF3JMApGwSgYBYMEMDAwAAAAAP//oqSDOdKWZC3A07kc3fdBezDauRy6QAA6y0aPfPIArbM5YQTsTxxtWKOC0ZN1BxYo0LlOVBidvRwFo2AUjIJBBBgYGAAAAAD//6Kkg/lhBC2ThS3HQwejnUv6AFyd+1EwOIEDdEYBlD/OMzAwvIcuIe+ns2sfQGczYfduDtc7N0f3naGChNEVJQMO+umYLteP5oFRMApGwSgYRICBgQEAAAD//6KkgwkCB0dAfOLqXCaMdi7pAnCF/ygYHMAArTP5H6kzid7QFxjAhv8CpOWzw21Gc7QzhQnm06nTITC6JBcrEIDGAa3B6PaUUTAKRsEoGGyAgYEBAAAA//+itIM53GcwL+DpXNKj8hzpYLRzObiAATTt90M7kf+hnUpsnUlcYKDvqYMtnx09dXV4AwNoGqXF8mHYoMp+6Oz8+pEe2DhAAI2vMxtdQTQKRsEoGAWDETAwMAAAAAD//yL3mhIYeADthA3HEcQL0LsW0cFo55I+YLRzObAA+e5JAyqeVBoAnUUcSPAAmrdHG6jDGxhAB0AmUrgXF5b+9aHpF9vM6OhdpNgBbKlsAxXNFIB26kdPTx4Fo2AUjILBCBgYGAAAAAD//6K0g8kAnQkYbh1MWOcSvcFgMNq5pAvANXM8CmgDYJ1J5A4lrZYXwu6wHAwziIlI/h4FwxMIQA+AqYemuYNI9zgzIJ02DEsDsGXc8khplRgwehcpblAP7ZwnUqETnkDn/Z2jYBSMglEwCkgFDAwMAAAAAP//okYHcyGNl8HQG3zA07ncP4z8OVgBrpnjUUAdIIA2I+MwAI21+kHUGA9kYGC4PwjcQSlQGMaHGFELOIzOeg0YCICG/UTo6hRS0ipsn2v96InJo2AUjIJRMAQAAwMDAAAA//+iRgcTNho8HEYUCXUuR0dNaQtwzRyPAvIAemfSYJA00BygbhkMd1UOl2X+lHYwH4w23ikCg2VWfjADbLPJB6DlPXJZYIB0tZH+6CFKo2AUjIJRMMQAAwMDAAAA//+iRgeTAXrYz1DfywTrXKI3egVGO5d0AaOdS8oBrOOmPwSWfvYPopnqjaPLZEc7mAMIRuLMM2w2efT+ylEwCkbBKBhugIGBAQAAAP//olYHc+Mw6GCOdi4HDnyALlUc7VwSDwSgeW4odCaxAQfozMRgOIl6OKS70dmzgQX2FNg+urR5FIyCUTAKRsHwAQwMDAAAAAD//6JWB3OoN24S8XQuR/rMBq0BbOZ4tJFFGlCAzgIOZTAfaYncKBhYMBoHo2A4gAvQAW8G6EFNo6dEj4JRMApGAb0BAwMDAAAA//+i9B5MGPgwhO/ETIQeOoAORjuXtAe4liWPAsJgOISZwCC5Q3B0hQIDw8VB4IahDEbrisEBFkKvRGmAskfBKBgFo2AU0BswMDAAAAAA//+iVgeTAbphf6gBXJ3L+aMNBpqD0c4l5WA4zPo6DIKrf/wH2P7BAEZnMCkDlAxSjIY99cBQHegeBaNgFIyC4QMYGBgAAAAA//+iZgdzqBXsC/B0LkeX1dAeBI52LikGw2VZccIAdjIVhsFgEjXSwWhepByQm45Gw5464MLoVotRMApGwSgYBICBgQEAAAD//6JmB/PBEKooF+C4yH+0c0kfkDh6KAlVwFBcNYALJAzQgVpDfR8rA5Ua1aMNc8rB6FLrgQUbB7PjRsEoGAWjYMQABgYGAAAAAP//omYHk2GIdBpwdS4TRjuXdAG4liWPAtLBcJv5AC2XvU/HfNg/TO7Yo8YSy9EOJuWAkmteRmcxKQejy2NHwSgYBaNgMAAGBgYAAAAA//+idgdzsG+qv4CncznQ+8BGAhjtXFIXDMdGqQA0L+6nYecPZkcBjcynN6DWAT2jqwooA5R0MEf3YVIGLox20kfBKBgFo2CQAAYGBgAAAAD//6J2B/PCIK4oL+C42H20c0kfUDjauaQ6eDCMZ54coCfM3ofONFJjn6QC9HRJes6S0gNQq2E92kCnDMhToHs07CkDoyfGjoJRMApGwWABDAwMAAAAAP//otY9mMhgwyBsvME6l+idX4PRziVdAKhjOWEE+HMgwIFhvrRbATrTWADNvxege0+RO9foM28KSLNJoDyuD6WH68nQ1BpkODiMZnUHAlAyg/lx6Hp7UIDR5bGjYBSMglEwWAADAwMAAAD//6JFB3PjIGvwfsDTudw/QG4aSQDXntdRQB1wcATtHRaAzmw6DAK3DCZArdmv0SWylAFKOpigsK8fDJ4YgmDD6B7iUTAKRsEoGESAgYEBAAAA//+i9hJZhkHWSCHUuRw99Y+2YLRzSXswOnI/sgE1y9sPo0s1KQKUdDBHO0jkg9HTY0fBKBgFo2AwAQYGBgAAAAD//6JFB/PDIGn04rrIX2C0c0kXMNq5pA8Y7RSMbEDtxvXoLCZlgNx65cHoQT9kgQeje/tHwSgYBaNgkAEGBgYAAAAA//+iRQeTYZCMKI52LgcOXIAe6jMK6ANGD7gYuYDaHcLR2SDKACX7fEcHikgHo2XfKBgFo2AUDDbAwMAAAAAA//+iVQdzwwCPxibi6VwO14M+BgvAdaDSKKAdGB3BH5ngAQ06JQdG8y5FgJLBy4ODwP1DDYweHjcKRsEoGAWDDTAwMAAAAAD//6JVB3Mgl8niumtxtHNJezDauRwYMFiWpY8C+gJaxfloWiIfUFLHjC5PJg0sGK1rRsEoGAWjYBACBgYGAAAAAP//olUHEwQaB8DLuDqX80c7lzQHo53LgQUTR7LnRyig1fLA0bQ0MGC0g0kaGIg2xigYBaNgFIwCQoCBgQEAAAD//6JlB/MBnSuABXg6lyPlGoeBAh+gnfvRzuXAgQOje7hGFKBlfF8YTUtkA3sK9Y/OHhMHFoyevDsKRsEoGAWDFDAwMAAAAAD//6JlB5MBuj+CHg0VXCeWjnYuaQ9wndY7CugPRmeeRg6g9eEmo2lpYMDoIUvEgdHZy1EwCkbBKBisgIGBAQAAAP//onUHkx4zW7g6lwmjnUuag9HO5eACC0bjYkQAelzNMLq/jTzgQKH+0WWyhMHo7OUoGAWjYBQMZsDAwAAAAAD//6J1B5OBxldWXMDTuZxPIztHAQSMdi4HJxi9Hmb4A3rN3ozOYtIfPBjtZOIFH0ZnL0fBKBgFo2CQAwYGBgAAAAD//6JHB5OBRpfuww6VQQejnUv6AGxXwYyCgQcHRvdxDWtwgY7X0kwYncUkC1B6oNzo3Y64wcTR2ctRMApGwSgY5ICBgQEAAAD//6JXB5OByp1MXCeWGox2LukCEkc7MYMaFI52DIYtoOcM9ehsEXmAkrswGQbBPdKDFTwYvfdyFIyCUTAKhgBgYGAAAAAA//+iZweTAdrJNKSw8vyAp3O5n0L3jQLCANdVMKNg8AB6n+A8CugDJgzA8skJozNGJANKZzA/jJaxWMHoSeWjYBSMglEwFAADAwMAAAD//6J3B5MBOvuoSGYFSqhzSenI8SjAD0Y7l0MHTBidZR5WYCAHDai9vWG4A2rUQ6P7X1HBhtG9qaNgFIyCUTBEAAMDAwAAAP//GogOJgPS6bKOJFQauA6VERjtXNIFNI52LoccGN0nO3xA4ADO3hwYXZpIEpCnghn0OCl4qIAPo4Mco2AUjIJRMIQAAwMDAAAA//8aqA4mDByAdhoNiThQYrRzOXAA1NBpGKmeH8KAHtcEjQLag8EwUNA4ulSWaKBAJXNGl7lDwEAOroyCUTAKRsEoIBUwMDAAAAAA//8a6A4mDMCuMhGEdjYL0Q46wNbAgnUuKd3vMgrwA1qcADwK6AdwHYg1CoYGmDBIZrI+QBv6o4AwoFYHc3QWc2D2HY+CUTAKRsEooAQwMDAAAAAA//8aLB1MZHABWqkEQjucgjgq2dHOJe3BaOdyeIDRTubQBAsG2b2muO4dHgWogFodTIYRfiL0gdF7fUfBKBgFo2AIAgYGBgAAAAD//xqMHUx0gK1yVYBWPqP7y2gHNow2JocVGO1kDi0wWAd3FozOqhEFqLVtY6ReFfNgdMZ8FIyCUTAKhihgYGAAAAAA//8aCh1MbOABdGTTEDrD6QithEeX0lAHjM5UDE8w2skcGmCwrxwYPU2aMKDm6pqRtkz0w+i+y1EwCkbBKBjCgIGBAQAAAP//YhkG8fcBWvkiV8AOUKwPpUcPASIejHZChjeAXRM0usR8cIKh0nlLhKaf0TSEHVC7zgF1uO6PgLoM12nxo2AUjIJRMAqGCmBgYAAAAAD//xqqM5iEwAHoqaeBaAcHLRg9CREvGO1cjgzwAenk5lEwOAAsTobSzOBQcy89AbU73rCO13AGo53LUTAKRsEoGA6AgYEBAAAA//8arh1MdAA7OCgROnujiDRTMFqZQcCD0c7liAOF0DgfHXQZWLABWiYNxbJodLks/cBw3row2rkcBaNgFIyC4QIYGBgAAAAA//8aKR1MdPAAaZ8TbB9n4Ag+En10z8vIBQdGZzMHDMDy3VDPe4mjp31iAHsamTscT/Ye7VyOglEwCkbBcAIMDAwAAAAA//8aqR1MdPABOosAm9FhHEEHB41W7qPgA9KhWaMHZdEHTIDOWm4YRv4ZXQFBHzCcOpkXRuufUTAKRsEoGGaAgYEBAAAA//8a7WDiBrB9nLAOJ2wf54Zh1Iga7VyOAmQAa+w5jnY0aQYWQDuWw/F+wwPDrNNMCXCgsfnDoZO5YbT+GQWjYBSMgmEIGBgYAAAAAP//Gu1gEg9g+zhhBwch7+McinvYRjuXowAXODDa0aQ6WIBUZgznPa/Iy35H9/bSFiwYorPGsBUTo9syRsEoGAWjYDgCBgYGAAAAAP//Gu1gkg+Q93HCDg6C7eMc7J220c7lKCAGwDqaitB0PdoYJA08gC6zFxwBHUt0ADu4qHEEpxtaz2IyIO2hHioDQaN7vkfBKBgFo2C4AwYGBgAAAAD//xrtYFIPPEDaxwk7OGgw7uN8MNq5HAUkggfQdA07DGvBaGcTJ/iANLOkCF1mP5LDqmGEdTQvDMB+ZliZPpiXXT+ADrKMnlo9CkbBKBgFwx0wMDAAAAAA//9i/P///2g80w84QLE+lKb3pdkboJX8aOdgFFADBDAwMPhD07LCCA7RB9DOxMbR/Yd4gQA0zeTT4J7IgQIfkOL+wCDoPIHCuJ6BgaFggN0BA7BZ/IG4ykZgGKSzDxQMBhsMQBuDFoCSMBjsYDikURi4QGHbsgFadg0HADq3ZWQDBgYGAAAAAP//Gu1gDiwwQOtw0qqR/gDpgKJRMApoARSgnQdap+XBAGCdioNQenQ1AOkAVPbFQ9PMUEsrF9A6lYMRgMI0AdqZH4hOBiiMJo7ekToKRsEoIBKMdjCHE2BgYAAAAAD//xrtYA4uoABtnNtDG2CUjmyNVvKjYKCAADQtG0A7nQpDdKQWNnp+EEpfGF3iR3UAG2jzp9O+RVIAcvwfoMIo/UCABGjYBtDYbtg2kYWjgy6jYBSMAhLBaAdzOAEGBgYAAAAA//8a7WAObiCA1uEkpvGFvFRvtCE8CgYbMEBK1wxIF9IP5HIuWKcBlF8eQukHQ7QzMRwAbGBCHmmgjdZpAznOPyItdx1uZWgANDztqdCZv4DW+R6tb0bBKBgF5ILRDuZwAgwMDAAAAAD//xrtYA49gKuxNRwbQ6NgZAL0hi81ZrXQ9/GM5pehB2DpgJJ9S+jxPtKv4VFAw/jAB6RBl9EZylEwCkYBNcFoB3M4AQYGBgAAAAD//+zXAQkAAAwEoeufejEGj7ZQMAEAgC+CuaQ6AAAA///s3UENAAAMhDD8q16m4b6tDhJsSgAAADbqjlcdAAAA///s3DERAAAMhDD8q+5Vw6+JCxYEJgAAwMa34VUHAAD//+zXMQ0AAAjAsDnBv0tkkJBWwr4ZTAAA4Moo/0i1AAAA///s3cEJAAAIA7Hbf2pxCkGSLY4+KjABAIArX76zLZirGgAAAP//7N0xEQAACAOx+neHIwywA3eJgl871cAEAAC2fPzJntS9pAVJGgAA///s3TENAAAMw7BCHH80Q1H1sVnkisAEAAAWbvjBpiHJAwAA///s3UENAAAMAjEczr+bBRVLllbC/XhhYAIAABfmUXX/2pVkAQAA///s1zENADAMwLBAK5TxRzGNRI/JhpAvBhMAANg21fmousF8qgsAAP//7NsxEQAADAIx/JupxR4mOvQSCWw/IDABAIBL/V3Os8UFZiVZAAAA///s2zENADAMwLBAH7NRq0pix2SzyBGBCQAAvLC/5anuh++lwFzVAAAA//9iGQRuGAWjYBSMglEwCkbBKBgFo2AUDD3wH3o9xwWoy0GdrIc4fGEPXRY7HMGFYeov0gEDAwMAAAD//+zZMQ0AAAgEsZeAf7VM7ISRtC4uJzABAICrehyOW+7lSNIAAAD//+zdMQ0AAAzDsPBHvWsEets4IkUiCwAAsPPAfNUBAAD//+zasQ0AAAgCQfaf2sqE1tq7LT4gMAEAgKvvq2VzkV1JBgAA///s1zEBAAAMw6D4V71rBnqDCwQTAABgJ5ivOgAAAP//7NshAQAACMCw909JFCwavbW4uMAEAAD4GQ/mUS0AAAD//+zZIREAAAzEsPpXPTr8OHHRq8AEAADYuJdfdQAAAP//7NchAQAACMCw929FMywavUW4u8EEAAD4Gd2OagEAAP//7NcxDQAACAPBSsL/hDQSHLAx3Cn4dKuDCQAAXJXFVj9o+CPJAAAA///s27ENAAAIAjBO8P9rTZhc3dsT2EhAwQQAAL5GYv1emsheSRYAAP//7NkhEQAADMSw+lc9PvY8cdGrwAQAANi5l191AAAA///s1yEBAAAIwLD3b0NDPA6/Rbi7wQQAAPgbzY5qAQAA///s1yEBADAMwLD6VzNplzA+dp5IKKvBBAAA+POq0eyoFgAA///s1zEBAAAIw7A5wb9LDOzhJpHQrwYTAAC4mufFzGWTZAEAAP//7NdBDQAACAOxScEyjtHAj4RWwWW/OZgAAMBWPV+sDzTck2QAAAD//+zcQQ0AAAyEMPyrnoIlJ6B1wQeBCQAAsHOP/VQHAAD//+zXMQ0AAAjAsFnHOQpIENBK2DeDCQAA8DdaHaoFAAD//+zcQREAAAyDMPyrnoNdBSQu+CAwAQAANuY+n+oAAAD//+zboQEAAAjDsP3v+BiDxKBJvqiowAQAAK6+Ppg1kckmSQMAAP//7NdBDQAgEAPBIgX/IkswQHJvZiTsb1dbbQAAgIkfJ+KO5TaYD0kOAAAA///s2YEAAAAAw6D5Ux/hAqWRwQQAAPjs5VMNAAD//+zcUQkAAAhDwVWyfzkxgfjtXYvHYBZMAADg6ltEzHNsCcxFkgYAAP//7NkxDQAACMCwWcb/gwOCgNbFMgcTAADgNuLyoVoAAAD//+zcMQEAAAjDsEnAvwokYgFuEgn99szABAAALupZrfYcu5RkAAAA//8a7WCOglEwCkbBKBgFo2AUjIJRMApIAQYjKLRAs5aJg8AdQwMwMDAAAAAA///s2jENAAAIwLBZxb8JDPDwty6WTGACAADcxhr7UC0AAAD//+zaMQ0AAAjAsPm/kIwALv7WxZIJTAAAgGussU/VAgAA///s3KEBAAAIw7D9fxWnYWaQ+OSLmgpMAACAazr24SPJAgAA///s3DERACAQA8GziHMkvQY6YHYVXJsmBiYAAHDi95OfXa0LOt5TDQAAAP//7N0xEQAACAJAqtm/lGcEHb3/FgyAgAkAAGx8HvmZv8vSuzxK0gAAAP//7NkhEQAADMSw+lc9OP44cdGrwAQAAPhzKS5X1QEAAP//7NkxDQAADMOwHuOPbZBGos8kG0H+zM9sAACAmnUuC5IcAAAA///s2UERAAAIgDD6pzKaJfy5teBwMAEAgM9GXB6pFgAA///s1zEBAAAIwKD1v4xsCT+hBYIJAAB8NXJ5qFoAAAD//xpdIjsKRsEoGAWjYBSMglEwCkbBKCAF2A+D0AJ1KBNH77mkMmBgYAAAAAD//+zZQREAAAjDsFnBv0luIniRuOjVwQQAAD5pVI64PJBkAQAA///s2TEBAAAIw7D5V4UUpPBggYvEQs86mAAAwAe917LUPpJkAAAA///s2sEJAAAIA7Gu7P4fEVzBjyRblKuCCQAAfDZ32NpqaVxeStIAAAD//+zcwQkAAAgDsa7u5iI4gw9J1rhSBRMAAPhoimXtFNaJz4UkDQAA///s28EJACAAA7G6/xROWnEHQZFkgz7v0dH2/5UAAMAprwfEDsrpY3lBkgUAAP//7NlBDQAACAOx+VeHBKTwxQEhaS3ca5kHEwAA+K7WqGw1jyQZAAAA///s2zERAAAIA7H6d4MzJLAgAu6SpRp+qMAEAAC+6f1T1q6ovCDJAAAA///s2TERAAAIA7H6d4UDJLGAB4bEQqe/CkwAAOC7i8jat7It9lCSAQAA///s2bEJACAMRNHvJDqK+3du4AiOIEKKtCmF/yAk3AZHLJiSJEmSKhowgRHTYxN51UmF8d0rZdvv5EeACwAA//8DALT9PBqbK5N4AAAAAElFTkSuQmCC" alt="Sturij">
+</header>
+
+<div class="page">
+  <div class="wrap">
+    <header>
+      <p class="eyebrow">Sturij Marketing · Operating Discipline</p>
+      <h1>Governance &amp; Knowledge Architecture</h1>
+      <p class="thesis">Nothing reaches a real group without Polly reading it first. This is the discipline that makes “safe” mean safe.</p>
+      <div class="mast-meta">
+        <span><b>Owner</b> Mark</span>
+        <span><b>Rule of the house</b> Draft, never send</span>
+        <span><b>Merges to main</b> Mark only</span>
+        <span><b>Reference</b> CLAUDE.md is the source of truth</span>
+      </div>
+    </header>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">01</span><h2>How work ships</h2></div>
+      <p class="sec-lede">A deliberately lighter path than the main app — this repo is a proving ground, not production infrastructure. No automated verify script, no bot validator, no deploy step by default. Just clear hand-offs and one person who merges.</p>
+      <div class="flow">
+        <div class="step"><span class="k">Step 1</span><span class="t">Build</span><span class="d">On its own branch, off the latest main. One chat, one branch.</span></div>
+        <div class="step gate"><span class="k">Step 2 · Gate</span><span class="t">Architect review</span><span class="d">A second AI session checks the work against CLAUDE.md and the design system — human judgement, applied consistently, not a script.</span></div>
+        <div class="step"><span class="k">Step 3</span><span class="t">Push &amp; verify</span><span class="d">Local HEAD confirmed equal to remote before anything is called “done.”</span></div>
+        <div class="step button"><span class="k">Step 4 · Mark</span><span class="t">Review &amp; merge</span><span class="d">Mark reads the diff himself and merges. No auto-merge exists for this repo.</span></div>
+        <div class="step"><span class="k">Step 5</span><span class="t">Ship — when it's real</span><span class="d">No standing deploy target yet. A tool only goes live for Polly once it has somewhere real to run (see Track A, §06).</span></div>
+      </div>
+      <p class="flow-note"><b>A second, separate gate sits on top of this.</b> Merging to git and being safe to use near a real Facebook group are <i>different</i> approvals — see §03. Code can be merged and still not be cleared for Polly.</p>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">02</span><h2>The golden rules</h2></div>
+      <p class="sec-lede">Binding on every session. Eight core rules below; eight more (source-of-truth &amp; tooling, the architect gate, and the proving-ground relationship to the main app) live in the fuller sections of CLAUDE.md — this page shows the ones that get broken first.</p>
+      <div class="rules">
+        <div class="rule"><span class="n">1</span><div class="b"><div class="rt">The tool DRAFTS. A human always SENDS.</div><div class="rd">No posting, no messaging, autonomously — ever. Propose → Polly approves → send. One bad autonomous post can lose a group she spent years earning trust in.</div></div></div>
+        <div class="rule"><span class="n">2</span><div class="b"><div class="rt">The Group Ledger is law</div><div class="rd">Check a group’s rules and temperature before drafting for it. No adverts, no links, no price-first, no copy-paste across groups, no tagging our own page.</div></div></div>
+        <div class="rule"><span class="n">3</span><div class="b"><div class="rt">Draft in Polly’s voice, or say nothing</div><div class="rd">Learned from her real, verbatim messages. A roboty reply is the fastest way to get flagged — voice-true is a safety feature, not a nicety.</div></div></div>
+        <div class="rule"><span class="n">4</span><div class="b"><div class="rt">The design system is canonical</div><div class="rd">Match STURIJ_DESIGN.md; use group_ledger.html as the reference implementation. Tokens only — never invent a different theme.</div></div></div>
+        <div class="rule"><span class="n">5</span><div class="b"><div class="rt">Confidential — nothing leaves the family</div><div class="rd">Discovery answers, near-misses, lead sources, Polly’s message samples. This data is the moat; protect it like one.</div></div></div>
+        <div class="rule"><span class="n">6</span><div class="b"><div class="rt">Trust code and data, not prose</div><div class="rd">Verify every claim against the actual files and repo history. A description of the repo can drift from the repo itself — check, don’t assume.</div></div></div>
+        <div class="rule"><span class="n">7</span><div class="b"><div class="rt">Git discipline</div><div class="rd">One chat = one branch. Never push or merge to main. No force-push or history rewriting. Verify HEAD before claiming “pushed.” One session at a time. No autonomous pushes.</div></div></div>
+        <div class="rule"><span class="n">8</span><div class="b"><div class="rt">Secrets never touch chat or repo</div><div class="rd">Facebook/Messenger tokens, API keys live only in env/platform config. A secret seen in chat is compromised — revoke it on sight.</div></div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">03</span><h2>The architect’s role</h2></div>
+      <p class="sec-lede">Not an automated script — there isn’t one for this repo, and that’s deliberate. A second AI (or Mark) reviews before anything could touch a real group. This gate is separate from a git merge: code can be merged and still not cleared for Polly to rely on near Facebook.</p>
+      <div class="val">
+        <div class="val-grid">
+          <div>
+            <p class="eyebrow" style="margin-bottom:14px">What it checks</p>
+            <ul class="checks">
+              <li><span class="tick">›</span><span>Does anything here touch, or could it touch, a <b>real Facebook group</b> — even indirectly</span></li>
+              <li><span class="tick">›</span><span>Does it follow the <b>golden rules</b> (§02), not just look like it does</span></li>
+              <li><span class="tick">›</span><span>Does it match <b>STURIJ_DESIGN.md</b> exactly, not a plausible-looking approximation</span></li>
+              <li><span class="tick">›</span><span>Is anything stated as fact actually <b>verified</b> against the files, not assumed from a prior summary</span></li>
+              <li><span class="tick">›</span><span>Would this survive contact with a real, trigger-happy group moderator</span></li>
+            </ul>
+          </div>
+          <div>
+            <p class="eyebrow" style="margin-bottom:14px">The verdict</p>
+            <div class="verdicts">
+              <span class="chip go">✓ CLEARED&nbsp;FOR&nbsp;POLLY</span>
+              <span class="chip stop">✕ NOT&nbsp;YET&nbsp;CLEARED</span>
+            </div>
+            <p style="font-size:13px;color:var(--ink-soft);margin:16px 0 0;line-height:1.5">Everything built so far is <b>NOT YET CLEARED</b> — nothing in this repo has been used near a real group. That’s the honest current state, not a gap to hide.</p>
+          </div>
+          <p class="val-note"><b>Why this exists as its own gate:</b> a code review answers “does this work.” This gate answers “could this get Polly banned.” Those are different questions with different failure costs — a bad merge is annoying, a banned account is unrecoverable.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">04</span><h2>Knowledge architecture</h2></div>
+      <p class="sec-lede">One constitution at the root, everything else pointed to from it. No skills infrastructure yet (no slash-commands) — that’s main-app machinery this repo deliberately hasn’t adopted.</p>
+      <div class="tree">
+        <div class="tnode"><span class="path">/CLAUDE.md</span><span class="desc">The constitution — golden rules, source-of-truth &amp; tooling rules, the architect gate, the proving-ground relationship. Always loaded.</span><span class="tag">always on</span></div>
+        <div class="tnode child"><span class="path">STURIJ_DESIGN.md</span><span class="desc">The look — DM Serif Display · DM Sans · IBM Plex Mono · warm paper/navy/gold. Canonical, tokens only.</span></div>
+        <div class="tnode child"><span class="path">SKILL.md — sturij-scheduled-events</span><span class="desc">Per-group posting-day rules, the local events list, and the honest limits of Claude scheduling.</span></div>
+        <div class="tnode child"><span class="path">GROUP_LEDGER_SCHEMA.md</span><span class="desc">Supabase schema spec for the Group Ledger — written, not yet implemented.</span><span class="tag">spec only</span></div>
+        <div class="tnode child"><span class="path">artifacts/group_ledger.html</span><span class="desc">The working prototype — <b>and now the canonical reference implementation</b> of the design system in practice, replacing polly_debrief_form.html (retired 10 July — discovery is complete).</span><span class="tag">reference</span></div>
+        <div class="tnode child"><span class="path">strategy_framework/ (Google Drive)</span><span class="desc">Discovery, strategy, and learning docs — still living in Drive, not yet migrated to git. A known gap, not a second home.</span><span class="tag">gap</span></div>
+      </div>
+      <div class="skills">
+        <span class="skill"><span class="new">+</span> start-session</span>
+        <span class="skill"><span class="new">+</span> import-groups</span>
+        <span class="skill"><span class="new">+</span> architect-review</span>
+      </div>
+      <p style="font-size:12.5px;color:var(--faint);margin-top:12px;font-family:var(--mono)">+ proposed, none built yet &nbsp;·&nbsp; skills are procedures; docs are knowledge — don’t conflate them.</p>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">05</span><h2>Program status</h2></div>
+      <p class="sec-lede">Where everything actually stands — pushed and merged are different states, shown honestly as different states. Mark still runs the git merge. Tap a row to open it.</p>
+      <div class="legend">
+        <span><span class="dot green"></span> Merged</span>
+        <span><span class="dot amber"></span> Pushed · awaiting review</span>
+        <span><span class="dot red"></span> Not yet started</span>
+      </div>
+      <div class="board">
+
+        <details class="acc" open>
+          <summary><span class="dot amber"></span><span class="acc-title">Branch: claude/setup-claude-artifacts-skill-hvjj1p</span><span class="acc-sub">pushed · awaiting Mark’s review &amp; merge</span><span class="caret">▸</span></summary>
+          <div class="acc-body">
+            <div class="item"><span class="dot amber"></span><span class="lbl">artifacts/group_ledger.html — added</span><span class="st">Pushed</span></div>
+            <div class="item"><span class="dot amber"></span><span class="lbl">SKILL.md — added</span><span class="st">Pushed</span></div>
+            <div class="item"><span class="dot amber"></span><span class="lbl">CLAUDE.md — replaced with full compiled version</span><span class="st">Pushed</span></div>
+            <div class="item"><span class="dot red"></span><span class="lbl">DESIGN.md → STURIJ_DESIGN.md rename</span><span class="st">Instructed — not yet confirmed</span></div>
+            <div class="item"><span class="dot green"></span><span class="lbl">polly_debrief_form.html — retired as reference (Mark approved 10 July)</span><span class="st">Decided</span></div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary><span class="dot red"></span><span class="acc-title">Database migration</span><span class="acc-sub">spec written · nothing built</span><span class="caret">▸</span></summary>
+          <div class="acc-body">
+            <div class="item"><span class="dot green"></span><span class="lbl">GROUP_LEDGER_SCHEMA.md — schema designed</span><span class="st">Done</span></div>
+            <div class="item"><span class="dot red"></span><span class="lbl">Supabase tables created</span><span class="st">Not started</span></div>
+            <div class="item"><span class="dot red"></span><span class="lbl">App wired to Supabase instead of artifact storage</span><span class="st">Not started</span></div>
+            <div class="item"><span class="dot red"></span><span class="lbl">Real deploy target (Vercel)</span><span class="st">Not started</span></div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary><span class="dot red"></span><span class="acc-title">Reply Drafter</span><span class="acc-sub">blocked on real data</span><span class="caret">▸</span></summary>
+          <div class="acc-body">
+            <div class="item"><span class="dot red"></span><span class="lbl">Polly’s real, verbatim replies (10–20 examples)</span><span class="st">Not yet provided</span></div>
+            <div class="item"><span class="dot red"></span><span class="lbl">Voice-matching draft tool</span><span class="st">Blocked on the above</span></div>
+            <div class="item"><span class="dot red"></span><span class="lbl">“Why this is safe” line, per §01/§02 rule 1</span><span class="st">Designed, not built</span></div>
+          </div>
+        </details>
+
+        <details class="acc">
+          <summary><span class="dot amber" id="groupsDot"></span><span class="acc-title">Real groups</span><span class="acc-sub" id="groupsSub">the actual data this whole repo is waiting on</span><span class="caret">▸</span></summary>
+          <div class="acc-body">
+            <div class="item"><span class="dot amber"></span><span class="lbl">Groups captured so far</span><span class="st" id="groupsCount">loading…</span></div>
+            <div class="item"><span class="dot green"></span><span class="lbl">Group gathering complete</span><span class="st">272 real groups seeded (10 July 2026) — original "325" was an early estimate, not a confirmed count</span></div>
+            <div class="item"><span class="dot red"></span><span class="lbl">Official rules captured verbatim, per group</span><span class="st">Ongoing — one at a time, browsing paced, never automated</span></div>
+            <div class="item"><span class="dot green"></span><span class="lbl">Capture method settled</span><span class="st">Screenshots or Claude in Chrome, always attended — never scheduled or unattended, per SKILL.md</span></div>
+          </div>
+        </details>
+
+      </div>
+    </section>
+
+    <script>
+      (function(){
+        var TOTAL_GROUPS = 272;
+        window.storage && window.storage.get('group-capture-tracker').then(function(res){
+          var state = res && res.value ? JSON.parse(res.value) : { count: 0 };
+          var count = state.count || 0;
+          var pct = Math.min(100, Math.round((count / TOTAL_GROUPS) * 100));
+          var countEl = document.getElementById('groupsCount');
+          var subEl = document.getElementById('groupsSub');
+          var dotEl = document.getElementById('groupsDot');
+          if(countEl) countEl.textContent = count + ' of ' + TOTAL_GROUPS + ' (' + pct + '%)';
+          if(subEl) subEl.textContent = count + ' captured \u00b7 ' + (TOTAL_GROUPS - count) + ' to go';
+          if(dotEl && count > 0) dotEl.className = 'dot amber';
+        }).catch(function(){
+          var countEl = document.getElementById('groupsCount');
+          if(countEl) countEl.textContent = 'not available in this view';
+        });
+      })();
+    </script>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">06</span><h2>Development scope &amp; specification</h2></div>
+      <p class="sec-lede">Two tracks, both genuinely next — neither blocks the other.</p>
+      <div class="tracks">
+        <div class="track">
+          <p class="lane">Track A · Infrastructure</p>
+          <h3>Move the Ledger to a real database</h3>
+          <p>The artifact prototype proved the interaction pattern with demo data. It needs a real home before real data or Polly's own independent access make sense.</p>
+          <ol>
+            <li><b>Supabase</b> — the schema in GROUP_LEDGER_SCHEMA.md, not a second system</li>
+            <li><b>Storage-layer swap only</b> — every UI pattern already proven stays exactly as built</li>
+            <li><b>Real deploy</b> — Vercel, matching the main app’s convention</li>
+            <li><b>No migration of demo data</b> — the real table starts empty</li>
+          </ol>
+          <p class="own">Spec: GROUP_LEDGER_SCHEMA.md</p>
+        </div>
+        <div class="track">
+          <p class="lane">Track B · Voice</p>
+          <h3>Build the Reply Drafter</h3>
+          <p>The one piece every other tool in this repo exists to support — and the one genuinely blocked on Mark, not on design or engineering.</p>
+          <ol>
+            <li><b>Collect</b> 10–20 of Polly’s real, verbatim replies (per POLLY_DEBRIEF.md §4)</li>
+            <li><b>Match her voice</b> — not a generic assistant tone</li>
+            <li><b>Draft, copy, paste</b> — never send; the app’s job stops at the clipboard</li>
+            <li><b>Show the “why this is safe” line</b> — the group rule it respects, visibly</li>
+          </ol>
+          <p class="own">Blocked on: Polly’s real replies</p>
+        </div>
+      </div>
+      <p class="scope-note"><b>The sequence that protects it:</b> the architect gate (§03) sits between “built” and “near a real group,” for both tracks, every time. Database migration and Reply Drafter both still answer to it before either touches anything live.</p>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">07</span><h2>Product concepts · north star</h2></div>
+      <p class="sec-lede">Why this repo exists at all, captured so it can’t drift — from Mark directly, not inferred. See CLAUDE.md’s “Why this exists” section for the full version.</p>
+      <div class="tracks">
+        <div class="track">
+          <p class="lane">The four threads</p>
+          <h3>In priority order — #1 is not equal to the rest</h3>
+          <p>Every other thread exists in service of the first. If a tool adds friction instead of removing it, it has failed regardless of technical polish.</p>
+          <ol>
+            <li><b>UX for Polly</b> — the entire justification for this platform</li>
+            <li><b>Instrument what exists</b> — the Ledger, debrief data, reply outcomes as aggregate insight</li>
+            <li><b>Find the customer who doesn’t know Sturij exists</b> — parallel communities, not just parallel markets</li>
+            <li><b>The owned-channel bridge</b> — get a real enquiry off a platform Mark doesn’t control</li>
+          </ol>
+          <p class="own">CLAUDE.md · “Why this exists”</p>
+        </div>
+        <div class="track">
+          <p class="lane">Parked · next debate</p>
+          <h3>The Post Composer</h3>
+          <p>Sibling to the Reply Drafter, for when Polly wants to share something rather than answer someone — three genuinely different angles, remix, a comment box to steer, outcomes logged.</p>
+          <ol>
+            <li><b>Three real options</b> — different strategies, not three rewordings</li>
+            <li><b>Remix</b> — new options if none land</li>
+            <li><b>Learns from choices</b> — reads the outcome log before drafting the next batch, doesn’t retrain silently</li>
+          </ol>
+          <p class="own">designed in conversation · not yet specced formally</p>
+        </div>
+      </div>
+      <p class="scope-note"><b>Why they cohere:</b> both tools are the same grammar — propose, never send — applied to two different starting points. Neither is real infrastructure investment until the Reply Drafter proves the pattern with Polly first.</p>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">08</span><h2>Where the real files live</h2></div>
+      <p class="sec-lede">No published claude.ai gallery yet — nothing here has been published that way, and this page won’t claim links that don’t exist. Once the branch above is merged, the repo itself is the durable index.</p>
+      <div class="gal-group">
+        <p class="gh">In this session, delivered to Mark directly</p>
+        <div class="gal">
+          <span style="padding:8px 14px;color:var(--ink-soft);font-size:13px">group_ledger.html</span>
+          <span style="padding:8px 14px;color:var(--ink-soft);font-size:13px">SKILL.md</span>
+          <span style="padding:8px 14px;color:var(--ink-soft);font-size:13px">CLAUDE.md (compiled)</span>
+          <span style="padding:8px 14px;color:var(--ink-soft);font-size:13px">GROUP_LEDGER_SCHEMA.md</span>
+        </div>
+      </div>
+      <p class="scope-note"><b>Retired:</b> polly_debrief_form.html was delivered earlier as the discovery form and reference implementation. Its discovery role is complete (discovery happened directly with Mark), and group_ledger.html has taken over as the canonical reference — see §04. It should <b>not</b> be added to the repo.</p>
+      <p class="scope-note"><b>On this page itself:</b> it's a governance reference, not a build artifact — update it by hand when program status changes materially, the same discipline as CLAUDE.md rule 6: trust what's actually true, not what was true last time someone wrote it down.</p>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">09</span><h2>Proposed sprints \u2014 for discussion</h2></div>
+      <p class="sec-lede">The two features already agreed as the real next work. Tabled here to get the shape of each one right before either is built \u2014 not a decision, an invitation to poke holes in it.</p>
+
+      <div class="sprint-card">
+        <div class="sprint-head">
+          <h3>Sprint A \u00b7 Database migration</h3>
+          <span class="sprint-status">Proposed</span>
+        </div>
+        <p class="sprint-lede">Move the Group Ledger off artifact storage and into a real, independently-hosted database \u2014 the thing that lets Polly (or Mark) open it without a Claude session running.</p>
+        <div class="sprint-grid">
+          <div class="sprint-sub">
+            <p class="eyebrow">In scope</p>
+            <ul>
+              <li>Implement the schema already written in <code>GROUP_LEDGER_SCHEMA.md</code> \u2014 Supabase, not a new system</li>
+              <li>Swap <code>window.storage</code> calls for real queries; every UI pattern already proven stays exactly as built</li>
+              <li>Real deploy target (Vercel), matching the main app's convention</li>
+              <li>Area-research and image-picker calls are unaffected \u2014 they don't touch storage</li>
+            </ul>
+          </div>
+          <div class="sprint-sub out">
+            <p class="eyebrow">Out of scope</p>
+            <ul>
+              <li>Any redesign of the interaction patterns already tested with real data</li>
+              <li>Migrating the demo <code>[Example]</code> seed data \u2014 the real table starts empty</li>
+              <li>Multi-user auth/permissions \u2014 not needed until there's more than one real login</li>
+            </ul>
+          </div>
+        </div>
+        <div class="sprint-blocker"><b>Open questions:</b> who holds the Vercel/Supabase account long-term? Does Polly get her own login or a shared workspace \u2014 and does that decision wait until it's actually needed? <b>Trigger for doing this now:</b> 272 real groups exist; the artifact-storage prototype has done its job proving the pattern.</div>
+      </div>
+
+      <div class="sprint-card">
+        <div class="sprint-head">
+          <h3>Sprint B \u00b7 Reply Drafter</h3>
+          <span class="sprint-status">Proposed</span>
+        </div>
+        <p class="sprint-lede">Draft replies to Facebook DMs and comments in Polly's real voice. Drafts, never sends \u2014 the tool's job stops at the clipboard, per golden rule 1.</p>
+        <div class="sprint-grid">
+          <div class="sprint-sub">
+            <p class="eyebrow">In scope</p>
+            <ul>
+              <li>Voice-matching draft, learned from Polly's real verbatim replies (10\u201320 examples)</li>
+              <li>A "why this is safe" line, checked against the group's actual <code>official_rules</code> field</li>
+              <li>Copy-to-clipboard, one draft at a time \u2014 no send button exists in this tool, ever</li>
+              <li>Warning shown plainly if a group's official rules haven't been captured yet (true for 270 of 272 today)</li>
+            </ul>
+          </div>
+          <div class="sprint-sub out">
+            <p class="eyebrow">Out of scope</p>
+            <ul>
+              <li>Any autonomous sending or posting \u2014 permanently out of scope, not just for v1</li>
+              <li>The Post Composer (three-option post drafting) \u2014 a related, separate tool, later</li>
+              <li>Scheduling replies \u2014 see <code>SKILL.md</code> on why that's a different, careful conversation</li>
+            </ul>
+          </div>
+        </div>
+        <div class="sprint-blocker"><b>Blocker, not an open question:</b> this cannot start until Polly's real replies are collected. Everything else about this sprint is ready to build the moment that input exists.</div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="foot-brand-row">
+        <div class="foot-brand">
+          <img src="data:image/png;base64,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" alt="">
+          <span>Sturij Marketing</span>
+        </div>
+        <div class="foot-links">
+          <a href="index.html">Home</a>
+          <a href="group_ledger.html">Group Ledger</a>
+          <a href="group_reach_map.html">Reach Map</a>
+          <a href="sturij_knowledge.html">Strategy &amp; Knowledge</a>
+        </div>
+      </div>
+      <b>Source of truth:</b> this page mirrors <code>CLAUDE.md</code> and the docs it points to — if they disagree, the repo wins. &nbsp;·&nbsp; The git history is the audit trail. &nbsp;·&nbsp; Produced as a reference, 2026-07-10.
+    </footer>
+  </div>
+</div>
+
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('tt');
+    function cur(){ return root.dataset.theme || 'light'; }
+    btn.addEventListener('click',function(){
+      root.dataset.theme = cur()==='dark' ? 'light' : 'dark';
+    });
+
+    function ambient(){
+      var h = new Date().getHours(), b;
+      if      (h>=11 && h<15) b=0.50;
+      else if (h>=6  && h<11) b=0.70;
+      else if (h>=15 && h<18) b=0.78;
+      else if (h>=18 && h<21) b=1.00;
+      else                    b=1.25;
+      root.style.setProperty('--glow-boost', b.toFixed(2));
+    }
+    ambient();
+    setInterval(ambient, 10*60*1000);
+  })();
+</script>
+</body>
+</html>
