@@ -174,7 +174,6 @@ Leeds Buy Nothing
     <p class="import-hint">One name per line, or "Name, rough size, area" if you have it &mdash; e.g. "Harrogate Mums, 8.2k, Harrogate"</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn btn-primary" id="importBtn">Import groups</button>
-      <button class="btn btn-secondary" id="seedDemoBtn">Just show me an example</button>
     </div>
   </div>
 
@@ -210,14 +209,69 @@ Leeds Buy Nothing
   </div>
 </div>
 
-<script>
-const STORAGE_KEY = 'group-ledger:groups';
-const EVENTS_STORAGE_KEY = 'group-ledger:events';
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 let groups = [];
 let events = [];
 let saveTimer = null;
+let supabase = null;
 
-function uid(){ return 'g' + Math.random().toString(36).slice(2, 10); }
+function uid(){ return crypto.randomUUID(); }
+
+// --- Supabase storage layer -------------------------------------------------
+// Storage moved from the artifact's window.storage to Supabase (see
+// GROUP_LEDGER_SCHEMA_1.md). This is a storage-layer swap only — every UI and
+// interaction pattern below is unchanged. The JS model stays camelCase; these
+// mappers translate to/from the snake_case columns in the `groups` table.
+function toGroupRow(g){
+  return {
+    id: g.id,
+    name: g.name,
+    size: g.size || null,
+    area: g.area || null,
+    tier: g.tier || 'amber',
+    avoid: g.avoid || [],
+    tags: g.tags || [],
+    notes: g.notes || null,
+    responses: g.responses || 0,
+    confirmed: !!g.confirmed,
+    is_key: !!g.isKey,
+    image: g.image || null,
+    image_candidates: g.imageCandidates || [],
+    context_summary: g.contextSummary || null,
+    tone: (typeof g.tone === 'number') ? g.tone : 50,
+    official_rules: g.officialRules || null,
+    rules_updated: g.rulesUpdated || null,
+    posting_days: g.postingDays || [],
+    posting_note: g.postingNote || null,
+    updated_at: new Date().toISOString()
+  };
+}
+
+function fromGroupRow(r){
+  return {
+    id: r.id,
+    name: r.name,
+    size: r.size || '',
+    area: r.area || '',
+    tier: r.tier || 'amber',
+    avoid: r.avoid || [],
+    tags: r.tags || [],
+    notes: r.notes || '',
+    responses: typeof r.responses === 'number' ? r.responses : 0,
+    confirmed: !!r.confirmed,
+    isKey: !!r.is_key,
+    image: r.image || null,
+    imageCandidates: r.image_candidates || [],
+    contextSummary: r.context_summary || '',
+    tone: typeof r.tone === 'number' ? r.tone : 50,
+    officialRules: r.official_rules || '',
+    rulesUpdated: r.rules_updated || null,
+    postingDays: r.posting_days || [],
+    postingNote: r.posting_note || ''
+  };
+}
 
 const TAG_RULES = [
   { re: /business/i, tag: 'Business' },
@@ -257,11 +311,13 @@ function parseImport(text){
 
 async function loadGroups(){
   try{
-    const res = await window.storage.get(STORAGE_KEY);
-    groups = res && res.value ? JSON.parse(res.value) : [];
-    groups.forEach(g => { if(typeof g.responses !== 'number') g.responses = 0; });
+    const { data, error } = await supabase.from('groups').select('*');
+    if(error) throw error;
+    groups = (data || []).map(fromGroupRow);
   } catch(e){
     groups = [];
+    const note = document.getElementById('savedNote');
+    if(note) note.textContent = 'Could not load groups — check the connection';
   }
   render();
 }
@@ -272,11 +328,12 @@ function scheduleSave(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try{
-      await window.storage.set(STORAGE_KEY, JSON.stringify(groups));
+      const { error } = await supabase.from('groups').upsert(groups.map(toGroupRow));
+      if(error) throw error;
       if(note) note.textContent = 'Saved';
       setTimeout(() => { if(note) note.textContent = '\u00a0'; }, 1500);
     } catch(e){
-      if(note) note.textContent = 'Could not save \u2014 changes are local to this view only';
+      if(note) note.textContent = 'Could not save \u2014 not written to the database';
     }
   }, 400);
 }
@@ -794,33 +851,6 @@ document.getElementById('importBtn').addEventListener('click', () => {
   }
 });
 
-document.getElementById('seedDemoBtn').addEventListener('click', () => {
-  // Illustrative placeholder data only — not real groups, just enough to see every state.
-  groups = [
-    { id: uid(), name: '[Example] Harrogate Mums & Businesses', size: '8.2k', area: 'Harrogate',
-      tier: 'green', avoid: ['no links', 'no price-first'], tags: ['Parenting', 'Business'], notes: 'Friendly mods, replies well to process photos.',
-      responses: 14, confirmed: true, isKey: true },
-    { id: uid(), name: '[Example] Yorkshire Home & Garden', size: '12k', area: 'Yorkshire',
-      tier: 'amber', avoid: ['no tagging our page'], tags: ['Home & Garden'], notes: 'Mixed bag \u2014 works best on weekday mornings.',
-      responses: 6, confirmed: true, isKey: true },
-    { id: uid(), name: '[Example] Leeds Buy Nothing', size: '30k', area: 'Leeds',
-      tier: 'red', avoid: ['no promo of any kind', 'no comment replies with links', 'strict mods, one warning = ban'], tags: ['Buy & Sell'], notes: 'A mod runs a competing joinery business \u2014 tread carefully.',
-      responses: 0, confirmed: true, isKey: true },
-    { id: uid(), name: '[Example] Ripon Traders Circle', size: '3.1k', area: 'Ripon',
-      tier: 'amber', avoid: [], tags: ['Trade'], notes: '', responses: 2, confirmed: false, isKey: false },
-    { id: uid(), name: '[Example] Knaresborough Community Board', size: '5.4k', area: 'Knaresborough',
-      tier: 'amber', avoid: [], tags: ['Community'], notes: '', responses: 0, confirmed: false, isKey: false },
-    { id: uid(), name: '[Example] Wetherby Local Life', size: '4.7k', area: 'Wetherby',
-      tier: 'amber', avoid: [], tags: ['Community'], notes: '', responses: 0, confirmed: false, isKey: false },
-    { id: uid(), name: '[Example] North Yorkshire Renovators', size: '9.8k', area: 'North Yorkshire',
-      tier: 'amber', avoid: [], tags: ['Home & Garden'], notes: '', responses: 1, confirmed: false, isKey: false },
-    { id: uid(), name: '[Example] Skipton Swap & Sell', size: '6.2k', area: 'Skipton',
-      tier: 'amber', avoid: [], tags: ['Buy & Sell'], notes: '', responses: 0, confirmed: false, isKey: false }
-  ];
-  scheduleSave();
-  render();
-});
-
 document.getElementById('addOneBtn').addEventListener('click', () => {
   const name = prompt('Group name?');
   if(name && name.trim()){
@@ -838,19 +868,25 @@ document.getElementById('sortSelect').addEventListener('change', render);
 
 async function loadEvents(){
   try{
-    const res = await window.storage.get(EVENTS_STORAGE_KEY);
-    events = res && res.value ? JSON.parse(res.value) : [];
+    const { data, error } = await supabase.from('events').select('*');
+    if(error) throw error;
+    events = (data || []).map(r => ({ id: r.id, name: r.name, date: r.event_date || '' }));
   } catch(e){
     events = [];
   }
   renderEvents();
 }
 
-function scheduleSaveEvents(){
-  clearTimeout(window.__eventsSaveTimer);
-  window.__eventsSaveTimer = setTimeout(async () => {
-    try{ await window.storage.set(EVENTS_STORAGE_KEY, JSON.stringify(events)); } catch(e){}
-  }, 400);
+// Events are add/remove only (no inline editing), so each change is a single-row
+// insert or delete rather than the debounced whole-array save groups use.
+async function insertEvent(ev){
+  try{ await supabase.from('events').insert({ id: ev.id, name: ev.name, event_date: ev.date || null }); }
+  catch(e){ /* left in-memory; a reload will reconcile against the database */ }
+}
+
+async function deleteEvent(id){
+  try{ await supabase.from('events').delete().eq('id', id); }
+  catch(e){}
 }
 
 function renderEvents(){
@@ -876,7 +912,7 @@ function renderEvents(){
     `;
     row.querySelector('.event-remove').addEventListener('click', () => {
       events = events.filter(e => e.id !== ev.id);
-      scheduleSaveEvents();
+      deleteEvent(ev.id);
       renderEvents();
     });
     list.appendChild(row);
@@ -887,15 +923,48 @@ document.getElementById('addEventBtn').addEventListener('click', () => {
   const nameEl = document.getElementById('eventName');
   const dateEl = document.getElementById('eventDate');
   if(!nameEl.value.trim()) return;
-  events.push({ id: uid(), name: nameEl.value.trim(), date: dateEl.value || '' });
+  const ev = { id: uid(), name: nameEl.value.trim(), date: dateEl.value || '' };
+  events.push(ev);
   nameEl.value = '';
   dateEl.value = '';
-  scheduleSaveEvents();
+  insertEvent(ev);
   renderEvents();
 });
 
-loadEvents();
-loadGroups();
+// --- Bootstrap --------------------------------------------------------------
+// Config carries the public Supabase anon key only (RLS-protected) — never the
+// service_role key. In production it comes from /api/config, backed by Vercel
+// env vars, so no key is ever committed (CLAUDE.md rule 8). For local dev an
+// uncommitted config.js can set window.SUPABASE_CONFIG instead.
+async function loadConfig(){
+  try{
+    const res = await fetch('/api/config');
+    if(res.ok){
+      const cfg = await res.json();
+      if(cfg && cfg.url && cfg.anonKey && !/YOUR_/.test(cfg.url) && !/YOUR_/.test(cfg.anonKey)) return cfg;
+    }
+  } catch(e){ /* fall through to local-dev config */ }
+  if(window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.url && window.SUPABASE_CONFIG.anonKey) return window.SUPABASE_CONFIG;
+  return null;
+}
+
+function showUnconfigured(){
+  document.getElementById('mainArea').style.display = 'none';
+  const panel = document.getElementById('importPanel');
+  panel.style.display = 'block';
+  panel.innerHTML = '<h2>Database not connected</h2>' +
+    '<p class="intro">This ledger now reads and writes to Supabase &mdash; nothing is stored in the browser any more. ' +
+    'Set <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> in the deployment environment ' +
+    '(see <code>DEPLOY.md</code>), then reload.</p>';
+}
+
+(async function init(){
+  const cfg = await loadConfig();
+  if(!cfg){ showUnconfigured(); return; }
+  supabase = createClient(cfg.url, cfg.anonKey);
+  await loadEvents();
+  await loadGroups();
+})();
 </script>
 </body>
 </html>

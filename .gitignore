@@ -1,0 +1,10 @@
+# Dependencies / tooling
+node_modules/
+.vercel/
+
+# Secrets & env — never commit (CLAUDE.md rule 8)
+.env
+.env.*
+
+# Local-dev-only Supabase config (real keys live in Vercel env, not git)
+artifacts/config.js
