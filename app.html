@@ -142,6 +142,12 @@
     color:var(--ink-body);font-family:'DM Sans';font-size:15px;margin-bottom:14px;text-align:center}
   .signin input:focus{outline:2px solid var(--navy);border-color:var(--gold)}
   .signin .btn{width:100%}
+  .btn-google{background:var(--card);border:1px solid var(--line);color:var(--ink-body);display:flex;align-items:center;justify-content:center;gap:10px;font-weight:500}
+  .btn-google:hover{border-color:var(--bronze)} .btn-google svg{width:18px;height:18px;flex:none}
+  .authmsg{margin-top:14px;font-size:12.5px;color:var(--ink-muted);min-height:16px;line-height:1.5}
+  .authmsg b{color:var(--ink-dark)} .authmsg a{color:var(--info)}
+  .signout{background:none;border:1px solid rgba(250,248,242,.28);color:rgba(250,248,242,.85);border-radius:999px;height:32px;padding:0 12px;
+    font-family:'DM Sans';font-size:12px;cursor:pointer} .signout:hover{border-color:var(--gold);color:var(--gold)}
   .loading{padding:60px;text-align:center;color:var(--ink-muted);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
   .err{background:rgba(169,93,65,.1);border:1px solid rgba(169,93,65,.4);color:var(--ink-body);border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:13.5px}
   .err b{color:var(--danger)} .err button{margin-left:10px;background:none;border:1px solid var(--line);border-radius:8px;padding:3px 10px;cursor:pointer;color:var(--ink-body);font-family:'DM Sans'}
@@ -192,9 +198,12 @@
   <div class="signin">
     <img src="STURIJ_BRAND_ASSETS/s-1d2427.png" alt="Sturij">
     <h2>Sign in to the workspace</h2>
-    <p>Who's posting today? This tags every post to your account for safe per-account velocity.</p>
-    <input id="acct" placeholder="Your name (e.g. Polly)" autocomplete="off">
-    <button class="btn btn-pri" id="enter">Enter workspace</button>
+    <p>Approved Sturij accounts only. Sign in with Google — this also tags every post to your account for safe per-account velocity.</p>
+    <button class="btn btn-google" id="gsignin">
+      <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.46.9 11.42 0 9 0A9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      Sign in with Google
+    </button>
+    <p class="authmsg" id="authmsg"></p>
   </div>
 </div>
 
@@ -212,6 +221,7 @@
     <span id="capText">– / 12</span><span class="bar"><i id="capBar" style="width:0"></i></span>
   </div>
   <div class="who">Signed in · <b id="whoName">—</b></div>
+  <button class="signout" id="signout">Sign out</button>
   <button class="themeb" id="tt">Theme</button>
 </div>
 
@@ -350,12 +360,60 @@ function showTab(t){
     try{ localStorage.setItem('sturij-theme',root.dataset.theme);}catch(e){} });
 })();
 
-/* ---- sign-in ---- */
+/* ---- Google auth (allow-list) ----
+   EDIT THIS LIST: the Google accounts allowed into the workspace.
+   Add Polly's + each team member's Google email (lower-case). */
+const ALLOWED = [
+  'mark.walton@gmail.com',
+  'contact@sturij.com',
+  // 'polly@example.com',   // <-- add Polly here
+  // 'teammate@example.com',
+].map(s=>s.trim().toLowerCase());
+
 const veil=document.getElementById('veil');
-function enter(){ const v=document.getElementById('acct').value.trim(); if(!v) return;
-  state.account=v; document.getElementById('whoName').textContent=v; veil.classList.add('hide'); loadAll(); }
-document.getElementById('enter').addEventListener('click',enter);
-document.getElementById('acct').addEventListener('keydown',e=>{ if(e.key==='Enter') enter(); });
+const authmsg=document.getElementById('authmsg');
+let loaded=false;
+
+async function initAuth(){
+  const c=client();
+  if(!c){ authmsg.textContent='Couldn’t load sign-in — check your connection and reload.'; return; }
+  const { data:{ session } } = await c.auth.getSession();
+  handleSession(session);
+  c.auth.onAuthStateChange((_e, s)=>handleSession(s));
+}
+function handleSession(session){
+  const user = session && session.user;
+  if(!user){ showGate(); return; }
+  const email=(user.email||'').toLowerCase();
+  if(!ALLOWED.includes(email)){
+    authmsg.innerHTML=`<b>${esc(email)}</b> isn’t on the approved list. `+
+      `<a href="#" id="sout">Sign out</a> and try another account.`;
+    const so=document.getElementById('sout'); if(so) so.onclick=async e=>{ e.preventDefault(); await client().auth.signOut(); };
+    showGate(); return;
+  }
+  const name = (user.user_metadata && (user.user_metadata.full_name||user.user_metadata.name)) || email;
+  state.account = name;
+  document.getElementById('whoName').textContent = name;
+  veil.classList.add('hide');
+  if(!loaded){ loaded=true; loadAll(); }
+}
+function showGate(){ veil.classList.remove('hide'); }
+
+document.getElementById('gsignin').addEventListener('click', async ()=>{
+  const c=client(); if(!c) return;
+  authmsg.textContent='Opening Google…';
+  const { error } = await c.auth.signInWithOAuth({ provider:'google',
+    options:{ redirectTo: location.origin + location.pathname } });
+  if(error) authmsg.innerHTML='Google sign-in isn’t configured yet — the provider needs enabling in Supabase. '+
+    '<span style="color:var(--ink-muted)">(setup steps are in the PR)</span>';
+});
+
+// topbar sign-out
+document.getElementById('signout').addEventListener('click', async ()=>{
+  const c=client(); if(c) await c.auth.signOut(); loaded=false; location.reload();
+});
+
+initAuth();
 
 /* ============ data ============ */
 async function loadAll(){
