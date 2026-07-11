@@ -364,10 +364,9 @@ function showTab(t){
    EDIT THIS LIST: the Google accounts allowed into the workspace.
    Add Polly's + each team member's Google email (lower-case). */
 const ALLOWED = [
-  'mark.walton@gmail.com',
-  'contact@sturij.com',
-  // 'polly@example.com',   // <-- add Polly here
-  // 'teammate@example.com',
+  'contact@sturij.com',    // shared Sturij account — Polly / team
+  'mark.walton@gmail.com', // Mark (owner)
+  // add any further team Google emails here, one per line
 ].map(s=>s.trim().toLowerCase());
 
 const veil=document.getElementById('veil');
