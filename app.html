@@ -143,6 +143,46 @@
   .signin input:focus{outline:2px solid var(--navy);border-color:var(--gold)}
   .signin .btn{width:100%}
   .loading{padding:60px;text-align:center;color:var(--ink-muted);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+  .err{background:rgba(169,93,65,.1);border:1px solid rgba(169,93,65,.4);color:var(--ink-body);border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:13.5px}
+  .err b{color:var(--danger)} .err button{margin-left:10px;background:none;border:1px solid var(--line);border-radius:8px;padding:3px 10px;cursor:pointer;color:var(--ink-body);font-family:'DM Sans'}
+  .rowlink{cursor:pointer}
+
+  /* ===== Group detail drawer (DESIGN.md §11) ===== */
+  .dveil{position:fixed;inset:0;background:rgba(20,24,28,.4);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .2s;z-index:300}
+  .dveil.on{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(440px,92vw);background:var(--card);border-left:1px solid var(--line);
+    box-shadow:-8px 0 40px rgba(26,24,21,.22);transform:translateX(100%);transition:transform .25s cubic-bezier(.2,.7,.3,1);z-index:301;
+    display:flex;flex-direction:column}
+  .drawer.on{transform:none}
+  .drawer-head{display:flex;align-items:flex-start;gap:12px;padding:22px 22px 16px;border-bottom:1px solid var(--line-soft)}
+  .drawer-head h2{margin-top:2px}
+  .dx{margin-left:auto;width:32px;height:32px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink-muted);
+    cursor:pointer;font-size:15px;flex:none}
+  .dx:hover{color:var(--navy);border-color:var(--navy)}
+  :root[data-theme="dark"] .dx:hover{color:var(--gold);border-color:var(--gold)}
+  .drawer-body{padding:20px 22px 40px;overflow-y:auto}
+  .field{margin-bottom:18px}
+  .field .k{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--bronze);margin-bottom:6px}
+  .field .v{font-size:14px;color:var(--ink-body);line-height:1.55}
+  .field .v.empty{color:var(--ink-muted);font-style:italic}
+  .tierpick{display:flex;gap:8px;margin-top:2px}
+  .tierpick .tp{cursor:pointer;opacity:.5;transition:opacity .15s,transform .15s}
+  .tierpick .tp.sel{opacity:1;transform:translateY(-1px)}
+  .tierpick .tp:hover{opacity:.85}
+  .saveflash{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--success);letter-spacing:.08em;text-transform:uppercase;margin-left:8px;opacity:0;transition:opacity .2s}
+  .saveflash.on{opacity:1}
+
+  /* ===== Responsive — Polly on tablet/phone ===== */
+  @media(max-width:860px){
+    .rail{flex-direction:row;top:auto;left:0;right:0;bottom:0;width:auto;height:58px;padding:0 6px;box-shadow:0 -2px 16px rgba(0,0,0,.18)}
+    .rail-nav{flex-direction:row;justify-content:space-around;width:100%;padding:0;gap:2px}
+    .rail-btn{width:44px;height:44px} .rail-btn .tip{display:none} .rail-foot{display:none}
+    .topbar{margin-left:0;padding:0 16px;height:58px;gap:10px} .topbar img{height:22px}
+    .cap-meter .bar{display:none}
+    .main{margin-left:0;padding:22px 16px 84px;min-height:calc(100vh - 58px)}
+    h1{font-size:27px} .stat-row{grid-template-columns:repeat(2,1fr)!important}
+    .card{overflow-x:auto}
+  }
 </style>
 </head>
 <body>
@@ -263,6 +303,16 @@
 
 </div></main>
 
+<!-- ============ GROUP DETAIL DRAWER ============ -->
+<div class="dveil" id="dveil"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <div><div class="kicker" id="gdKick">Group</div><h2 id="gdName"></h2></div>
+    <button class="dx" id="gdClose" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-body" id="gdBody"></div>
+</aside>
+
 <script>
 /* ============ Supabase client — reused verbatim from group_ledger.html ============ */
 const SUPABASE_URL = 'https://xscvfzfeepiakudshtod.supabase.co';
@@ -319,7 +369,10 @@ async function loadAll(){
     ]);
     state.groups = g.data||[]; state.posts = p.data||[]; state.restrictions = r.data||[];
     renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter();
-  }catch(e){ document.getElementById('dashStats').innerHTML='<div class="loading">Could not reach Supabase — check the connection.</div>'; }
+  }catch(e){
+    document.getElementById('dashStats').innerHTML=
+      '<div class="err" style="grid-column:1/-1"><b>Couldn’t reach the database.</b> Check your connection, then <button onclick="loadAll()">retry</button>.</div>';
+  }
 }
 
 const num = n => (n==null?'—':Number(n).toLocaleString('en-GB'));
@@ -370,7 +423,7 @@ function renderGroups(){
   if(q) rows=rows.filter(x=>(x.name||'').toLowerCase().includes(q)||(x.area||'').toLowerCase().includes(q));
   rows.sort((a,b)=>(b.fb_views||0)-(a.fb_views||0));
   document.getElementById('grpBody').innerHTML=rows.map(x=>
-    `<tr><td class="nm">${esc(x.name)}</td><td class="muted">${esc(x.area||'')}</td>
+    `<tr class="rowlink" data-id="${x.id}"><td class="nm">${esc(x.name)}</td><td class="muted">${esc(x.area||'')}</td>
       <td><span class="tchip ${x.tier}"><span class="dot ${x.tier}"></span>${x.tier}</span></td>
       <td class="num">${num(x.fb_views)}</td><td class="num">${num(x.fb_impressions)}</td><td class="num">${num(x.fb_engagement)}</td></tr>`
   ).join('')||'<tr><td colspan="6" class="muted">No matching groups.</td></tr>';
@@ -381,6 +434,40 @@ document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click'
   state.filter=b.dataset.filter;
   document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('on',x===b)); renderGroups();
 }));
+
+/* ---- group detail drawer (click a row) ---- */
+const drawer=document.getElementById('drawer'), dveil=document.getElementById('dveil');
+function fld(k,v,empty){ return `<div class="field"><div class="k">${k}</div><div class="v${v?'':' empty'}">${v?esc(v):(empty||'—')}</div></div>`; }
+function openGroup(id){
+  const g=state.groups.find(x=>x.id===id); if(!g) return;
+  document.getElementById('gdName').textContent=g.name;
+  document.getElementById('gdKick').textContent=g.area||'Group';
+  const reach=[g.fb_views!=null?g.fb_views+' views':'',g.fb_impressions!=null?g.fb_impressions+' impressions':'',g.fb_engagement!=null?g.fb_engagement+' engagement':''].filter(Boolean).join(' · ');
+  document.getElementById('gdBody').innerHTML=
+    `<div class="field"><div class="k">Tier <span class="saveflash" id="tierFlash">saved ✓</span></div>
+      <div class="tierpick" id="tierPick">${['green','amber','red'].map(t=>
+        `<span class="tp tchip ${t}${g.tier===t?' sel':''}" data-tier="${t}"><span class="dot ${t}"></span>${t}</span>`).join('')}</div></div>`
+    +fld('Facebook reach',reach,'Not measured yet')
+    +fld('Posting days',(g.posting_days&&g.posting_days.length)?g.posting_days.join(', '):'','Any day')
+    +fld('Official rules',g.official_rules,'None recorded')
+    +fld('Notes',g.notes)
+    +(g.url?`<div class="field"><div class="k">Facebook group</div><div class="v"><a href="${esc(g.url)}" target="_blank" rel="noopener" style="color:var(--info)">Open group ↗</a></div></div>`:'');
+  document.getElementById('tierPick').addEventListener('click',async e=>{
+    const tp=e.target.closest('.tp'); if(!tp) return; const t=tp.dataset.tier; if(t===g.tier) return;
+    const c=client(); if(!c) return; const prev=g.tier; g.tier=t;
+    document.querySelectorAll('#tierPick .tp').forEach(x=>x.classList.toggle('sel',x.dataset.tier===t));
+    try{ const {error}=await c.from('groups').update({tier:t}).eq('id',g.id); if(error) throw error;
+      const fl=document.getElementById('tierFlash'); fl.classList.add('on'); setTimeout(()=>fl.classList.remove('on'),1400);
+      renderGroups(); renderDash();
+    }catch(err){ g.tier=prev; document.querySelectorAll('#tierPick .tp').forEach(x=>x.classList.toggle('sel',x.dataset.tier===prev)); }
+  });
+  drawer.classList.add('on'); dveil.classList.add('on'); drawer.setAttribute('aria-hidden','false');
+}
+function closeDrawer(){ drawer.classList.remove('on'); dveil.classList.remove('on'); drawer.setAttribute('aria-hidden','true'); }
+document.getElementById('grpBody').addEventListener('click',e=>{ const tr=e.target.closest('tr[data-id]'); if(tr) openGroup(tr.dataset.id); });
+document.getElementById('gdClose').addEventListener('click',closeDrawer);
+dveil.addEventListener('click',closeDrawer);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrawer(); });
 
 /* ---- plan (read-only) ---- */
 const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
