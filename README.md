@@ -21,3 +21,4 @@ Early setup. Structure and rules first; surfaces designed against STURIJ_DESIGN.
 
 Relationship to the main Sturij app
 Separate repo, its own simple skin for now — but it shares the design DNA and the propose → approve → send grammar with the main platform, so the two can converge later if this works well. That convergence is a merge, not a rebuild — keep to both.
+WER
