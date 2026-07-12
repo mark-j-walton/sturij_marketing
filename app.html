@@ -166,6 +166,15 @@
   .btn-sm:hover{border-color:var(--bronze);color:var(--bronze)}
   .btn-post{border:none;background:linear-gradient(180deg,#27435b 0%,#1d3242 100%);color:rgba(250,248,242,.96)}
   .btn-post:hover{color:#fff} .btn-post:disabled{opacity:.4;cursor:not-allowed}
+  .acc{border:1px solid var(--line-soft);border-radius:12px;margin-bottom:12px;background:var(--card);overflow:hidden}
+  .acc-h{display:flex;align-items:center;gap:10px;padding:14px 18px;cursor:pointer}
+  .acc-h .t{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--bronze);flex:1}
+  .acc-h .c{color:var(--ink-muted);font-size:12px}
+  .acc-b{padding:0 18px 18px;display:none} .acc.open .acc-b{display:block} .acc.open .acc-h{border-bottom:1px solid var(--line-soft)}
+  .dna-e{margin-top:14px} .dna-e .et{font-family:'DM Serif Display',serif;font-size:17px;color:var(--ink-dark);margin-bottom:6px}
+  .dna-t{width:100%;min-height:96px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--ink-body);font-family:'DM Sans';font-size:14px;line-height:1.6;resize:vertical}
+  .dna-t:focus{outline:2px solid var(--navy);border-color:var(--gold)}
+  .dna-act{display:flex;gap:8px;margin-top:8px;align-items:center}
 
   /* ===== Group detail drawer (DESIGN.md §11) ===== */
   .dveil{position:fixed;inset:0;background:rgba(20,24,28,.4);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .2s;z-index:300}
@@ -298,13 +307,9 @@
   <section class="panel" data-panel="DNA">
     <span class="kicker">Sturij DNA</span>
     <h1>Sturij DNA</h1>
-    <p class="sub">Voice, strategy, learning &amp; reference — the tone context the copy engine reads.</p>
-    <div class="next-note">
-      <span class="kicker">Blocked on a real dependency (not faked)</span>
-      <b>The <code>dna</code> table doesn't exist in the database yet</b> — verified live just now. Your SPRINT_SPEC §6
-      creates it this sprint. I won't render a fake DNA tab over a missing table (that's exactly the hallucination pattern
-      we're killing). Once the <code>dna</code> table + seed is in, this tab wires straight up.
-    </div>
+    <p class="sub">Voice, strategy, learning &amp; reference — the tone context the copy engine reads. Edit any field and it saves live.</p>
+    <div class="toolbar"><button class="btn-sm" id="dnaDownAll">⤓ Download all (.md)</button></div>
+    <div id="dnaBody"></div>
   </section>
 
   <!-- SAFETY -->
@@ -342,7 +347,7 @@ function client(){ if(!sb && window.supabase) sb = window.supabase.createClient(
 
 const CAP = 12;                       // DESIGN + spec: 12 posts/day
 const TODAY = new Date().toISOString().slice(0,10);
-const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[] };
+const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[] };
 
 const TABS = [
   ['Dashboard','<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></svg>'],
@@ -429,13 +434,14 @@ async function loadAll(){
   const c = client();
   if(!c){ document.getElementById('dashStats').innerHTML='<div class="loading">Couldn’t load the data library — check your connection and reload.</div>'; return; }
   try{
-    const [g,p,r] = await Promise.all([
+    const [g,p,r,d] = await Promise.all([
       c.from('groups').select('*'),
       c.from('posting_log').select('*'),
       c.from('restrictions').select('*'),
+      c.from('dna').select('*'),
     ]);
-    state.groups = g.data||[]; state.posts = p.data||[]; state.restrictions = r.data||[];
-    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPost();
+    state.groups = g.data||[]; state.posts = p.data||[]; state.restrictions = r.data||[]; state.dna = d.data||[];
+    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPost(); renderDNA();
   }catch(e){
     document.getElementById('dashStats').innerHTML=
       '<div class="err" style="grid-column:1/-1"><b>Couldn’t reach the database.</b> Check your connection, then <button onclick="loadAll()">retry</button>.</div>';
@@ -655,6 +661,44 @@ async function markPosted(g, variation, contentHash){
 
 document.getElementById('postSearch').addEventListener('input',renderPost);
 document.getElementById('postPick').addEventListener('click',e=>{ const r=e.target.closest('.pk[data-id]'); if(r) openCockpit(r.dataset.id); });
+
+/* ---- DNA (editable, saves live) ---- */
+const DNA_CATS=['Voice & Personality','Strategy','Learning','Reference'];
+function renderDNA(){
+  const byCat={}; state.dna.forEach(d=>{ (byCat[d.category]=byCat[d.category]||[]).push(d); });
+  const cats=DNA_CATS.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>!DNA_CATS.includes(c)));
+  const el=document.getElementById('dnaBody');
+  el.innerHTML=cats.map((c,ci)=>{
+    const items=byCat[c]||[];
+    return `<div class="acc${ci===0?' open':''}"><div class="acc-h" data-acc><span class="t">${esc(c)}</span><span class="c">${items.length} ▾</span></div>
+      <div class="acc-b">${items.map(d=>`<div class="dna-e">
+        <div class="et">${esc(d.title)}</div>
+        <textarea class="dna-t" data-body="${d.id}">${esc(d.body||'')}</textarea>
+        <div class="dna-act"><button class="btn-sm" data-save="${d.id}">Save</button>
+          <button class="btn-sm" data-dl="${d.id}">⤓ .md</button>
+          <span class="saveflash" data-flash="${d.id}">saved ✓</span></div>
+      </div>`).join('')}</div></div>`;
+  }).join('')||'<div class="next-note">No DNA entries yet.</div>';
+}
+function mdFor(d){ return `# ${d.title}\n\n_Category: ${d.category}_\n\n${d.body||''}\n`; }
+function downloadFile(name, text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/markdown'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+async function saveDNA(id){
+  const ta=document.querySelector(`[data-body="${id}"]`); if(!ta) return; const c=client(); if(!c) return;
+  const body=ta.value;
+  const { error }=await c.from('dna').update({ body, updated_at:new Date().toISOString() }).eq('id',id);
+  if(!error){ const d=state.dna.find(x=>x.id===id); if(d) d.body=body;
+    const fl=document.querySelector(`[data-flash="${id}"]`); if(fl){ fl.classList.add('on'); setTimeout(()=>fl.classList.remove('on'),1400); } }
+}
+document.getElementById('dnaBody').addEventListener('click',e=>{
+  const h=e.target.closest('[data-acc]'); if(h){ h.parentElement.classList.toggle('open'); return; }
+  const s=e.target.closest('[data-save]'); if(s){ saveDNA(s.dataset.save); return; }
+  const dl=e.target.closest('[data-dl]'); if(dl){ const d=state.dna.find(x=>x.id===dl.dataset.dl); if(d) downloadFile((d.slug||'dna')+'.md', mdFor(d)); }
+});
+document.getElementById('dnaDownAll').addEventListener('click',()=>{
+  const all=DNA_CATS.map(c=>{ const items=state.dna.filter(d=>d.category===c); if(!items.length) return '';
+    return `## ${c}\n\n`+items.map(mdFor).join('\n'); }).filter(Boolean).join('\n---\n\n');
+  downloadFile('sturij-dna.md', `# Sturij DNA\n\n${all}`);
+});
 
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 </script>
