@@ -152,6 +152,20 @@
   .err{background:rgba(169,93,65,.1);border:1px solid rgba(169,93,65,.4);color:var(--ink-body);border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:13.5px}
   .err b{color:var(--danger)} .err button{margin-left:10px;background:none;border:1px solid var(--line);border-radius:8px;padding:3px 10px;cursor:pointer;color:var(--ink-body);font-family:'DM Sans'}
   .rowlink{cursor:pointer}
+  .pk{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer}
+  .pk:hover{background:rgba(212,170,88,.06)} .pk .nm{color:var(--ink-dark);font-weight:500;flex:1} .pk .a{color:var(--ink-muted);font-size:12px}
+  .guard{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+  .g-pill{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:6px 12px;border-radius:999px;border:1px solid var(--line)}
+  .g-pill.ok{background:rgba(74,124,89,.1);color:var(--success);border-color:rgba(74,124,89,.3)}
+  .g-pill.bad{background:rgba(169,93,65,.1);color:var(--danger);border-color:rgba(169,93,65,.35)}
+  .var{border:1px solid var(--line-soft);border-radius:12px;padding:16px;margin-bottom:12px;background:var(--card)}
+  .var .vlabel{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--bronze)}
+  .var .vtext{font-size:14.5px;line-height:1.6;color:var(--ink-body);white-space:pre-wrap;margin-top:8px}
+  .var .vact{display:flex;gap:8px;margin-top:12px}
+  .btn-sm{height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink-body);font-family:'DM Sans';font-size:13px;font-weight:500;cursor:pointer}
+  .btn-sm:hover{border-color:var(--bronze);color:var(--bronze)}
+  .btn-post{border:none;background:linear-gradient(180deg,#27435b 0%,#1d3242 100%);color:rgba(250,248,242,.96)}
+  .btn-post:hover{color:#fff} .btn-post:disabled{opacity:.4;cursor:not-allowed}
 
   /* ===== Group detail drawer (DESIGN.md §11) ===== */
   .dveil{position:fixed;inset:0;background:rgba(20,24,28,.4);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .2s;z-index:300}
@@ -274,14 +288,10 @@
   <section class="panel" data-panel="Post">
     <span class="kicker">Post cockpit</span>
     <h1>Post to a group</h1>
-    <p class="sub">Grounded copy variations, day-guard, and a guarded "Mark posted" that refuses to break the cap.</p>
-    <div class="next-note">
-      <span class="kicker">Next slice — being built with care</span>
-      <b>The Post cockpit writes to the database</b> (a real <code>posting_log</code> row) and must enforce the guardrails
-      in code — 12/day cap, 14-day cooldown, no identical variation to neighbours. Because it's the one surface that
-      <b>mutates</b> live data, it's the next step after you've eyeballed this shell — so the write path gets reviewed,
-      not rushed. The read-only tabs are live now.
-    </div>
+    <p class="sub">Pick a group, grab a variation, post it by hand on Facebook, then log it. The log <b>refuses</b> to break the 12/day cap or a 14-day per-group cooldown.</p>
+    <div class="toolbar"><input class="search" id="postSearch" placeholder="Find a group to post to…" autocomplete="off"></div>
+    <div id="postPick" class="card" style="padding:6px"></div>
+    <div id="postCockpit"></div>
   </section>
 
   <!-- DNA -->
@@ -425,7 +435,7 @@ async function loadAll(){
       c.from('restrictions').select('*'),
     ]);
     state.groups = g.data||[]; state.posts = p.data||[]; state.restrictions = r.data||[];
-    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter();
+    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPost();
   }catch(e){
     document.getElementById('dashStats').innerHTML=
       '<div class="err" style="grid-column:1/-1"><b>Couldn’t reach the database.</b> Check your connection, then <button onclick="loadAll()">retry</button>.</div>';
@@ -580,6 +590,71 @@ function renderSafety(){
       <td class="muted">${esc(r.appeal_outcome||(r.appealed?'pending':'—'))}</td></tr>`).join('')
     ||'<tr><td colspan="5" class="muted">No restrictions logged.</td></tr>';
 }
+
+/* ---- Post cockpit (guarded write) ---- */
+const VOICE = a => ([
+  `Just wrapped a bespoke fitted wardrobe over in ${a||'the area'} — floor-to-ceiling, soft-close, built right into an awkward alcove. If you've got a space you reckon "nothing will ever fit", that's exactly our bread and butter. Yorkshire-made, proper joinery. Happy to pop round for a look.`,
+  `${a||'Local'} homeowners — what would you do with a spare alcove, a boxy under-stairs, or a spare room that's become the dumping ground? We build fitted wardrobes, kitchens and media walls to the millimetre. Drop a comment or a message and I'll share a few recent jobs.`,
+  `Bespoke fitted furniture, built here in Yorkshire for ${a||'local'} homes. Real carcasses and quality hinges — not flat-pack — finished to last. Planning a bedroom, kitchen or home office? I'll happily talk options through, no hard sell.`
+]);
+function phash(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return (h>>>0).toString(16); }
+function lastAppPost(g){ return state.posts.filter(p=>p.group_id===g.id && p.source==='app').map(p=>p.posted_on).sort().pop(); }
+function cooldownLeft(g){ const l=lastAppPost(g); if(!l) return 0; return Math.max(0, 14 - Math.floor((new Date(TODAY)-new Date(l))/86400000)); }
+
+function renderPost(){
+  const q=(document.getElementById('postSearch').value||'').toLowerCase();
+  let rows=state.groups.slice().sort((a,b)=>({green:0,amber:1,red:2}[a.tier]-{green:0,amber:1,red:2}[b.tier])||(b.fb_views||0)-(a.fb_views||0));
+  if(q) rows=rows.filter(g=>(g.name||'').toLowerCase().includes(q)||(g.area||'').toLowerCase().includes(q));
+  document.getElementById('postPick').innerHTML=rows.slice(0,40).map(g=>
+    `<div class="pk" data-id="${g.id}"><span class="dot ${g.tier}"></span><span class="nm">${esc(g.name)}</span><span class="a">${esc(g.area||'')}</span></div>`
+  ).join('')||'<div class="pk"><span class="a">No matching groups.</span></div>';
+}
+
+function openCockpit(id){
+  const g=state.groups.find(x=>x.id===id); if(!g) return;
+  const capLeft=CAP-appPostsToday(), cd=cooldownLeft(g), dayOk=lockedToday(g), vars=VOICE(g.area);
+  const canPost = capLeft>0 && cd===0;
+  const box=document.getElementById('postCockpit');
+  box.innerHTML=
+    `<div class="card" style="margin-top:18px">
+      <div style="display:flex;align-items:flex-start;gap:10px"><div><div class="kicker">${esc(g.area||'Group')}</div><h2>${esc(g.name)}</h2></div>
+        <span class="tchip ${g.tier}" style="margin-left:auto"><span class="dot ${g.tier}"></span>${g.tier}</span></div>
+      <div class="guard">
+        <span class="g-pill ${capLeft>0?'ok':'bad'}">${capLeft>0?capLeft+' of '+CAP+' posts left today':'daily cap reached'}</span>
+        <span class="g-pill ${cd===0?'ok':'bad'}">${cd===0?'cooldown clear':'cooldown — '+cd+' days left'}</span>
+        <span class="g-pill ${dayOk?'ok':'bad'}">${dayOk?'ok to post today':'not a scheduled day'}</span>
+      </div>
+      ${g.url?`<a class="btn-sm" href="${esc(g.url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none">Open group on Facebook ↗</a>`:''}
+      <div id="postSaveMsg" style="margin-top:12px"></div>
+      ${vars.map((t,i)=>{ const lab=['A','B','C'][i]; return `<div class="var">
+        <span class="vlabel">Variation ${lab}</span><div class="vtext">${esc(t)}</div>
+        <div class="vact"><button class="btn-sm" data-copy="${i}">Copy</button>
+          <button class="btn-sm btn-post" data-post="${lab}" data-h="${phash(t)}" ${canPost?'':'disabled'}>Mark posted (${lab})</button></div>
+      </div>`; }).join('')}
+    </div>`;
+  box.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',()=>{
+    navigator.clipboard.writeText(vars[+b.dataset.copy]).then(()=>{ b.textContent='Copied ✓'; setTimeout(()=>b.textContent='Copy',1200); }).catch(()=>{});
+  }));
+  box.querySelectorAll('[data-post]').forEach(b=>b.addEventListener('click',()=>markPosted(g,b.dataset.post,b.dataset.h)));
+}
+
+async function markPosted(g, variation, contentHash){
+  const capLeft=CAP-appPostsToday(), cd=cooldownLeft(g), msg=document.getElementById('postSaveMsg');
+  if(capLeft<=0){ msg.innerHTML='<div class="err"><b>Blocked:</b> today’s 12-post cap is reached. Protect the account — nothing more today.</div>'; return; }
+  if(cd>0){ msg.innerHTML=`<div class="err"><b>Blocked:</b> ${esc(g.name)} is inside its 14-day cooldown (${cd} days left).</div>`; return; }
+  const c=client(); if(!c){ msg.innerHTML='<div class="err">No database connection.</div>'; return; }
+  const row={ group_id:g.id, group_name:g.name, posted_on:TODAY, variation, content_hash:contentHash, account:state.account, source:'app' };
+  try{
+    const { error }=await c.from('posting_log').insert(row); if(error) throw error;
+    state.posts.push(row);
+    msg.innerHTML=`<div class="banner ok" style="margin:0"><span>✅ Logged variation <b>${variation}</b> to <b>${esc(g.name)}</b>. ${CAP-appPostsToday()} posts left today.</span></div>`;
+    renderCapMeter(); renderDash(); renderPlan();
+    setTimeout(()=>openCockpit(g.id), 900);
+  }catch(err){ msg.innerHTML='<div class="err"><b>Couldn’t log it:</b> '+esc(err.message||'insert failed')+'</div>'; }
+}
+
+document.getElementById('postSearch').addEventListener('input',renderPost);
+document.getElementById('postPick').addEventListener('click',e=>{ const r=e.target.closest('.pk[data-id]'); if(r) openCockpit(r.dataset.id); });
 
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 </script>
