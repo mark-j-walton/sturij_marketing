@@ -1,0 +1,31 @@
+{
+  "_comment": "Ground-truth baselines pinned from the LIVE Supabase DB (xscvfzfeepiakudshtod) on 2026-07-10. The gate asserts the dev's build reproduces THESE, not the prose in the spec. Re-pin only from a real query, never by hand.",
+  "supabase_url": "https://xscvfzfeepiakudshtod.supabase.co",
+  "anon_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzY3ZmemZlZXBpYWt1ZHNodG9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2NTI0NTksImV4cCI6MjA5OTIyODQ1OX0.uYiB9r3_v9NbCp7jUIMtXdzuCr5j5Vh8b3sVTjGkFdo",
+  "sprint_start": "2026-07-10",
+  "guardrails": {
+    "daily_cap": 12,
+    "cooldown_days": 14
+  },
+  "groups": {
+    "total": 273,
+    "measured": 26,
+    "tier_mix": { "green": 8, "amber": 260, "red": 5 },
+    "spot_checks": [
+      { "name": "Crossgates (Leeds West Yorkshire) Businesses & Services", "fb_views": 170, "tier": "green" },
+      { "name": "Yorkshire Business Network", "fb_views": 1, "tier": "red" }
+    ],
+    "tuesday_locked_only": ["Boston Spa Grumbler"]
+  },
+  "posting_log": {
+    "total_rows": 26,
+    "note": "All 26 rows are reconstructed seed (source = 'reconstructed from Content Library (date approx)', account = null). The 15-Jun burst of 23 posts is HISTORICAL seed and legitimately exceeds the cap — the cap/cooldown invariants apply ONLY to app-written rows, never to this seed.",
+    "seed_source_prefix": "reconstructed",
+    "app_source": "app",
+    "historical_max_day": 23
+  },
+  "restrictions": { "total_rows": 3, "accounts": ["Polly — personal"] },
+  "dna": {
+    "note": "New this sprint. Table does NOT exist yet on the live DB. Absence = the DNA section is unbuilt (AC6 HOLD/FAIL), present + rows = built."
+  }
+}

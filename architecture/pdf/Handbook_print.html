@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>Sturij Marketing Workspace — User Handbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600&display=swap" rel="stylesheet">
+<style>
+  :root{--navy:#20384a;--gold:#d4aa58;--bronze:#8b5e2c;--paper:#faf8f2;--card:#fdfcf8;
+        --ink:#241f1a;--body:#3d3830;--muted:#6b6358;--success:#4a7c59;--danger:#a95d41;
+        --hair:rgba(35,31,27,.12);--hair2:rgba(35,31,27,.07);}
+  @page{size:A4;margin:16mm 17mm;}
+  *{box-sizing:border-box}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  body{margin:0;background:var(--paper);color:var(--body);
+       font-family:'DM Sans',system-ui,sans-serif;font-size:11pt;line-height:1.7;}
+  .howto{max-width:64ch;margin:14px auto 0;padding:10px 14px;border:1px dashed var(--bronze);
+         border-radius:10px;font-size:9.5pt;color:var(--muted);background:#fff}
+  .howto b{color:var(--bronze)}
+  .band{background:var(--navy);color:#f2eadb;padding:20px 26px;display:flex;align-items:center;gap:14px}
+  .band img{height:30px;display:block}
+  .band .wm{display:none;font-family:'DM Serif Display',serif;font-size:23px;color:#f2eadb;letter-spacing:.01em}
+  .band .tag{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:8.5pt;
+             letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+  .wrap{max-width:64ch;margin:0 auto;padding:22px 2px 40px}
+  .kicker{font-family:'IBM Plex Mono',monospace;font-size:8.5pt;font-weight:600;
+          letter-spacing:.14em;text-transform:uppercase;color:var(--bronze);margin:0}
+  h1{font-family:'DM Serif Display',serif;font-weight:400;color:var(--navy);
+     font-size:27pt;line-height:1.08;margin:.15em 0 .25em}
+  .lede{font-size:12.5pt;color:var(--muted);margin:0 0 6px}
+  h2{font-family:'DM Serif Display',serif;font-weight:400;color:var(--navy);
+     font-size:16pt;margin:1.5em 0 .2em;break-after:avoid;border-top:1px solid var(--hair);padding-top:.7em}
+  h2 .n{font-family:'IBM Plex Mono',monospace;font-size:10pt;color:var(--gold);margin-right:8px}
+  h3{font-family:'DM Sans',sans-serif;font-weight:600;color:var(--ink);font-size:11.5pt;margin:1em 0 .1em}
+  p{margin:.5em 0}strong{color:var(--ink);font-weight:600}
+  ul,ol{margin:.4em 0;padding-left:1.2em}li{margin:.25em 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:10pt;break-inside:avoid}
+  th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:8pt;letter-spacing:.06em;
+     text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--hair);padding:6px 9px}
+  td{padding:6px 9px;border-bottom:1px solid var(--hair2);vertical-align:top}
+  .card{background:var(--card);border:1px solid var(--hair2);border-radius:14px;padding:14px 18px;
+        margin:14px 0;break-inside:avoid;box-shadow:0 1px 2px rgba(35,31,27,.04)}
+  .card.gold{border-color:rgba(212,170,88,.5);background:rgba(212,170,88,.06)}
+  .steps{counter-reset:s;list-style:none;padding:0}
+  .steps li{counter-increment:s;position:relative;padding:6px 0 6px 34px;margin:0}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:5px;width:22px;height:22px;
+     background:var(--navy);color:#f2eadb;border-radius:999px;font-family:'IBM Plex Mono',monospace;
+     font-size:10pt;display:flex;align-items:center;justify-content:center}
+  .foot{margin-top:26px;border-top:1px solid var(--hair);padding-top:10px;
+        font-family:'IBM Plex Mono',monospace;font-size:8pt;letter-spacing:.1em;
+        text-transform:uppercase;color:var(--bronze);display:flex;justify-content:space-between}
+  a{color:var(--navy)}
+  .avoid{break-inside:avoid}
+  @media print{.howto{display:none}}
+</style></head>
+<body>
+
+<div class="howto">
+  <b>To make the PDF:</b> open in Chrome → <b>Print</b> → Destination <b>Save as PDF</b> → enable <b>Background graphics</b> (the logo is embedded, nothing else to place) → (optional) turn on Headers &amp; footers for page numbers.
+</div>
+
+<div class="band">
+  <img src="data:image/png;base64,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" alt="Sturij" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+  <span class="wm">sturij</span>
+  <span class="tag">Marketing · Workspace</span>
+</div>
+
+<div class="wrap">
+  <p class="kicker">User Handbook</p>
+  <h1>The Sturij Marketing Workspace</h1>
+  <p class="lede">A plain-English guide to using the workspace safely, day to day. Live at <strong>marketing.sturij.com/app.html</strong></p>
+
+  <h2><span class="n">1</span>What this is (and the one big idea)</h2>
+  <p>This is your <strong>safe posting workspace</strong>. It helps you reach the right Facebook groups with the right message — <strong>without getting the account restricted.</strong></p>
+  <div class="card gold avoid">
+    <p style="margin:0"><strong>The single most important thing:</strong> the app <strong>never posts to Facebook.</strong> <em>You</em> post, by hand. The app <strong>prepares</strong> everything and <strong>keeps the record</strong>. You copy, you paste, you post. That human step is deliberate — it's what keeps the account safe. Facebook bans automation; we never automate.</p>
+  </div>
+
+  <h2><span class="n">2</span>Signing in</h2>
+  <ul>
+    <li>Go to <strong>marketing.sturij.com/app.html</strong>.</li>
+    <li><strong>Sign in with Google</strong> — only approved Sturij accounts get in.</li>
+    <li>Blank/empty page? You're not signed in — use the <strong>Sign in</strong> button.</li>
+  </ul>
+
+  <h2><span class="n">3</span>The golden rules (why the app sometimes says "no")</h2>
+  <p>These are your <strong>ban-shield</strong>. The app enforces them so you don't have to remember them:</p>
+  <table>
+    <tr><th>Rule</th><th>What it means</th></tr>
+    <tr><td><strong>12 posts a day, max</strong></td><td>Never more than 12 posts across all groups in one day.</td></tr>
+    <tr><td><strong>14-day cooldown per group</strong></td><td>Once you post to a group, you can't post to it again for 14 days.</td></tr>
+    <tr><td><strong>Respect each group's rules</strong></td><td>Some groups only allow ads on certain days (e.g. Tuesdays).</td></tr>
+    <tr><td><strong>Vary your message</strong></td><td>Don't send the identical post to lots of groups.</td></tr>
+    <tr><td><strong>You post — never the app</strong></td><td>Copy-and-paste by hand, every time.</td></tr>
+  </table>
+  <p>If a <strong>"Mark posted" button is greyed out</strong>, it's one of these rules protecting you — usually the group is <strong>in its 14-day cooldown</strong>, or you've hit <strong>12 for the day</strong>.</p>
+
+  <h2><span class="n">4</span>Your daily flow</h2>
+  <ol class="steps avoid">
+    <li><strong>Open the workspace</strong> and sign in.</li>
+    <li>Go to <strong>Plan</strong> → see today's suggested groups (greens first, only what's safe today).</li>
+    <li>Pick a group → go to <strong>Post</strong>.</li>
+    <li>Check the <strong>guard pills</strong> (posts left today · cooldown · OK-to-post). If clear, the buttons are live.</li>
+    <li>Choose one of the <strong>3 message variations</strong> → click <strong>Copy</strong>.</li>
+    <li>Click <strong>Open group on Facebook</strong> → paste your message → <strong>post it yourself</strong>.</li>
+    <li>Come back and click <strong>Mark posted</strong> → this <strong>logs</strong> the post (it does not post anything).</li>
+  </ol>
+  <p>That's the loop: <strong>plan → copy → paste on Facebook → mark posted.</strong></p>
+
+  <h2><span class="n">5</span>The tabs</h2>
+  <table>
+    <tr><th>Tab</th><th>What it's for</th></tr>
+    <tr><td><strong>Dashboard</strong></td><td>Overview: groups, tier mix, top reach, and a ban-risk banner (posts left today).</td></tr>
+    <tr><td><strong>Groups</strong></td><td>All 273 groups. Search, filter by tier, see reach.</td></tr>
+    <tr><td><strong>Plan</strong></td><td>Today's safe suggestions (greens first, under the cap, rule-aware).</td></tr>
+    <tr><td><strong>Post</strong></td><td>Pick a group, grab a variation, mark it posted.</td></tr>
+    <tr><td><strong>DNA</strong></td><td>Sturij's voice, strategy and tone — the "recipe" behind the messages. Editable.</td></tr>
+    <tr><td><strong>Safety</strong></td><td>Restriction history and the enforced limits, always visible.</td></tr>
+  </table>
+
+  <h2><span class="n">6</span>Tiers (green / amber / red)</h2>
+  <ul>
+    <li><strong style="color:var(--success)">Green</strong> — your best groups (proven reach). Post here first.</li>
+    <li><strong style="color:var(--bronze)">Amber</strong> — the default; worth posting, not yet measured.</li>
+    <li><strong style="color:var(--danger)">Red</strong> — low reach. Lower priority.</li>
+  </ul>
+  <p>The Plan always puts <strong>greens first</strong>.</p>
+
+  <h2><span class="n">7</span>If something looks wrong</h2>
+  <ul>
+    <li>A <strong>greyed button</strong> is almost always a guardrail (cooldown/cap) — not a fault.</li>
+    <li>Blank page → you're signed out → sign in again.</li>
+    <li>Anything genuinely broken → the <strong>Support</strong> page (coming) lets you log it.</li>
+  </ul>
+
+  <h2><span class="n">8</span>Coming soon</h2>
+  <ul>
+    <li><strong>Today's Run</strong> — a guided one-at-a-time posting flow: copy → paste → next.</li>
+    <li><strong>Image montages &amp; Reels</strong> — grid adverts and short videos from real project photos.</li>
+    <li><strong>Group data capture</strong> — add a group's Facebook link and rule as you go.</li>
+    <li><strong>Support page</strong> — log bugs, feedback and feature requests.</li>
+  </ul>
+
+  <div class="card gold avoid" style="margin-top:20px">
+    <p class="kicker" style="margin-bottom:4px">Remember</p>
+    <p style="margin:0"><strong>The app keeps you safe and keeps the record. You do the posting.</strong> If the app says "not yet" on a group, trust it — it's protecting the account.</p>
+  </div>
+
+  <div class="foot"><span>Sturij Marketing · User Handbook</span><span>Building beautiful furniture. Fast.</span></div>
+</div>
+</body></html>
