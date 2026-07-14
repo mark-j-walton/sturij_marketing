@@ -813,29 +813,45 @@ document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click'
 const drawer=document.getElementById('drawer'), dveil=document.getElementById('dveil');
 function fld(k,v,empty){ return `<div class="field"><div class="k">${k}</div><div class="v${v?'':' empty'}">${v?esc(v):(empty||'—')}</div></div>`; }
 function gdChips(arr){ return (arr&&arr.length)?arr.map(t=>`<span class="gdchip">${esc(t)}</span>`).join(''):''; }
-let gdCurrent=null;
-function openGroup(id){
-  const g=state.groups.find(x=>x.id===id); if(!g) return;
-  gdCurrent=g;
-  document.getElementById('gdName').textContent=g.name;
-  document.getElementById('gdKick').textContent=g.area||'Group';
-  const reach=[g.fb_views!=null?num(g.fb_views)+' views':'',g.fb_viewers!=null?num(g.fb_viewers)+' viewers':'',g.fb_impressions!=null?num(g.fb_impressions)+' impressions':'',g.fb_engagement!=null?num(g.fb_engagement)+' engagement':''].filter(Boolean).join(' · ');
+let gdCurrent=null, gdEdit=false;
+function gdReadInfo(g){
   const avoid=(g.avoid&&g.avoid.length)?g.avoid:null, tags=(g.tags&&g.tags.length)?g.tags:null;
-  document.getElementById('gdBody').innerHTML=
-    `<div class="field"><div class="k">Tier <span class="saveflash" id="tierFlash">saved ✓</span></div>
-      <div class="tierpick" id="tierPick">${['green','amber','red'].map(t=>
-        `<span class="tp tchip ${t}${g.tier===t?' sel':''}" data-tier="${t}"><span class="dot ${t}"></span>${t}</span>`).join('')}</div></div>`
-    +fld('Members / size',g.size,'Not recorded')
-    +fld('Facebook reach',reach,'Not measured yet')
-    +`<div class="field" data-gdrule><div class="k">Posting days ${hasRule(g)?'':'<span class="tchip amber" style="padding:2px 8px">needs a rule</span>'}</div>
-       ${dayPicker(g.posting_days)}
-       <div class="dna-act" style="margin-top:8px"><button class="btn-sm" data-gd="saverule">Save days</button><button class="btn-sm" data-gd="anyday">Any day</button><span class="saveflash" id="gdRuleFlash">saved ✓</span></div></div>`
+  return fld('Members / size',g.size,'Not recorded')
     +(g.posting_note?fld('Posting note',g.posting_note):'')
     +fld('Official rules',g.official_rules,'None recorded')
     +(avoid?`<div class="field"><div class="k">Avoid — don’t mention</div><div class="v">${gdChips(avoid)}</div></div>`:'')
     +(g.context_summary?fld('Context',g.context_summary):'')
     +(tags?`<div class="field"><div class="k">Tags</div><div class="v">${gdChips(tags)}</div></div>`:'')
     +fld('Notes',g.notes)
+    +`<div class="dna-act" style="margin:2px 0 10px"><button class="btn-sm" data-gd="editinfo">✎ Edit group info</button></div>`;
+}
+function gdInput(k,id,val){ return `<div class="field"><div class="k">${esc(k)}</div><input class="search gdi" data-gdi="${id}" value="${esc(val||'')}" style="width:100%"></div>`; }
+function gdArea(k,id,val){ return `<div class="field"><div class="k">${esc(k)}</div><textarea class="dna-t gdi" data-gdi="${id}">${esc(val||'')}</textarea></div>`; }
+function gdEditForm(g){
+  return `<div class="muted" style="font-size:12px;margin:4px 0 10px">Editing group info — Save to keep.</div>`
+    +gdInput('Group name','name',g.name)+gdInput('Area / town','area',g.area)+gdInput('Members / size','size',g.size)
+    +gdArea('Official rules','official_rules',g.official_rules)+gdInput('Posting note','posting_note',g.posting_note)
+    +gdArea('Context','context_summary',g.context_summary)+gdArea('Notes','notes',g.notes)
+    +gdInput('Avoid — don’t mention (comma-separated)','avoid',(g.avoid||[]).join(', '))
+    +gdInput('Tags (comma-separated)','tags',(g.tags||[]).join(', '))
+    +`<div class="dna-act" style="margin:6px 0 10px"><button class="btn-sm btn-post" data-gd="saveinfo">Save info</button><button class="btn-sm" data-gd="canceledit">Cancel</button></div>`;
+}
+function openGroup(id){
+  const g=state.groups.find(x=>x.id===id); if(!g) return;
+  if(!gdCurrent || gdCurrent.id!==id) gdEdit=false;
+  gdCurrent=g;
+  document.getElementById('gdName').textContent=g.name;
+  document.getElementById('gdKick').textContent=g.area||'Group';
+  const reach=[g.fb_views!=null?num(g.fb_views)+' views':'',g.fb_viewers!=null?num(g.fb_viewers)+' viewers':'',g.fb_impressions!=null?num(g.fb_impressions)+' impressions':'',g.fb_engagement!=null?num(g.fb_engagement)+' engagement':''].filter(Boolean).join(' · ');
+  document.getElementById('gdBody').innerHTML=
+    `<div class="field"><div class="k">Tier <span class="saveflash" id="tierFlash">saved ✓</span></div>
+      <div class="tierpick" id="tierPick">${['green','amber','red'].map(t=>
+        `<span class="tp tchip ${t}${g.tier===t?' sel':''}" data-tier="${t}"><span class="dot ${t}"></span>${t}</span>`).join('')}</div></div>`
+    +fld('Facebook reach',reach,'Not measured yet')
+    +(gdEdit?gdEditForm(g):gdReadInfo(g))
+    +`<div class="field" data-gdrule><div class="k">Posting days ${hasRule(g)?'':'<span class="tchip amber" style="padding:2px 8px">needs a rule</span>'}</div>
+       ${dayPicker(g.posting_days)}
+       <div class="dna-act" style="margin-top:8px"><button class="btn-sm" data-gd="saverule">Save days</button><button class="btn-sm" data-gd="anyday">Any day</button><span class="saveflash" id="gdRuleFlash">saved ✓</span></div></div>`
     +`<div class="field" data-gdurl><div class="k">Facebook group ${hasUrl(g)?'<span class="tchip green" style="padding:2px 8px">confirmed</span>':((g.url_candidates&&g.url_candidates.length)?'<span class="tchip amber" style="padding:2px 8px">needs confirming</span>':'')}</div>
        ${hasUrl(g)
          ? `<div class="v"><a href="${esc(g.url)}" target="_blank" rel="noopener" style="color:var(--info)">Open group ↗</a> · <a href="#" data-gd="changeurl" style="color:var(--ink-muted)">change</a></div>`
@@ -852,11 +868,22 @@ function openGroup(id){
   });
   drawer.classList.add('on'); dveil.classList.add('on'); drawer.setAttribute('aria-hidden','false');
 }
-function closeDrawer(){ drawer.classList.remove('on'); dveil.classList.remove('on'); drawer.setAttribute('aria-hidden','true'); gdCurrent=null; }
+function closeDrawer(){ drawer.classList.remove('on'); dveil.classList.remove('on'); drawer.setAttribute('aria-hidden','true'); gdCurrent=null; gdEdit=false; }
 document.getElementById('gdBody').addEventListener('click', async e=>{
   const day=e.target.closest('.dchip'); if(day){ day.classList.toggle('on'); return; }
   const b=e.target.closest('[data-gd]'); if(!b||!gdCurrent) return; e.preventDefault();
   const g=gdCurrent, act=b.dataset.gd;
+  if(act==='editinfo'){ gdEdit=true; openGroup(g.id); return; }
+  if(act==='canceledit'){ gdEdit=false; openGroup(g.id); return; }
+  if(act==='saveinfo'){ const body=document.getElementById('gdBody');
+    const get=id=>{ const el=body.querySelector(`[data-gdi="${id}"]`); return el?el.value.trim():undefined; };
+    const nm=get('name')||g.name;
+    const patch={ name:nm, area:get('area')||null, size:get('size')||null, official_rules:get('official_rules')||null, posting_note:get('posting_note')||null,
+      context_summary:get('context_summary')||null, notes:get('notes')||null,
+      avoid:(get('avoid')||'').split(',').map(s=>s.trim()).filter(Boolean), tags:(get('tags')||'').split(',').map(s=>s.trim()).filter(Boolean) };
+    gdEdit=false;
+    if(await saveGroup(g,patch,'Info saved ✓')){ document.getElementById('gdName').textContent=g.name; document.getElementById('gdKick').textContent=g.area||'Group'; renderGroups(); renderPostBrowser(); openGroup(g.id); }
+    return; }
   if(act==='saverule'){ if(await saveGroup(g,{posting_days:readDays(b.closest('[data-gdrule]'))})) openGroup(g.id); return; }
   if(act==='anyday'){ if(await saveGroup(g,{official_rules:g.official_rules||'No day restriction'})) openGroup(g.id); return; }
   if(act==='usecand'){ if(await saveGroup(g,{url:b.dataset.u,url_candidates:[]},'Link confirmed ✓')) openGroup(g.id); return; }
