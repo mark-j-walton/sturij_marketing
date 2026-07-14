@@ -902,7 +902,7 @@ function renderAdShowcase(){
 
 /* ---- groups ---- */
 let grpGroupBy='region';
-function groupRow(g){ return `<div class="pk" data-gopen="${esc(g.id)}"><span class="dot ${g.tier}"></span><span class="nm">${esc(g.name)}</span><span class="a">${esc(g.area||'—')}${g.fb_views!=null?' · '+num(g.fb_views)+' views':''}</span></div>`; }
+function groupRow(g){ return `<div class="pk" data-gopen="${esc(g.id)}"><span class="dot ${g.tier}"></span><span class="nm">${esc(g.name)}</span>${!hasUrl(g)?'<span class="chip-mini red">no link</span>':''}<span class="a">${esc(g.area||'—')}${g.fb_views!=null?' · '+num(g.fb_views)+' views':''}</span></div>`; }
 function renderGroups(){
   const box=document.getElementById('grpBody'); if(!box) return;
   const q=(document.getElementById('grpSearch').value||'').toLowerCase().trim();
@@ -918,10 +918,11 @@ function renderGroups(){
   box.innerHTML=keys.map(k=>{
     const list=buckets[k].sort(tsort);
     const gr=list.filter(g=>g.tier==='green').length, am=list.filter(g=>g.tier==='amber').length, rd=list.filter(g=>g.tier==='red').length;
+    const noLink=list.filter(g=>!hasUrl(g)).length;
     return `<div class="gacc"><div class="gacc-h">
       <svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
       <span class="gacc-name">${esc(k)}</span>
-      <span class="gacc-stat"><span class="gpill neutral">${list.length}</span>${gr?`<span class="gpill green"><span class="dot green"></span>${gr}</span>`:''}${am?`<span class="gpill amber"><span class="dot amber"></span>${am}</span>`:''}${rd?`<span class="gpill red"><span class="dot red"></span>${rd}</span>`:''}</span>
+      <span class="gacc-stat">${noLink?`<span class="gpill red">⚠ ${noLink} no link</span>`:''}<span class="gpill neutral">${list.length}</span>${gr?`<span class="gpill green"><span class="dot green"></span>${gr}</span>`:''}${am?`<span class="gpill amber"><span class="dot amber"></span>${am}</span>`:''}${rd?`<span class="gpill red"><span class="dot red"></span>${rd}</span>`:''}</span>
     </div><div class="gacc-b"><div style="padding:2px">${list.map(groupRow).join('')}</div></div></div>`;
   }).join('');
 }
