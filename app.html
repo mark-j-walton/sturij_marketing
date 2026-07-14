@@ -1616,7 +1616,7 @@ async function imgToScaledBase64(img, maxEdge){
   const iw=img.naturalWidth, ih=img.naturalHeight, s=Math.min(1, maxEdge/Math.max(iw,ih));
   const w=Math.max(1,Math.round(iw*s)), h=Math.max(1,Math.round(ih*s));
   const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
-  const durl=cv.toDataURL('image/jpeg',0.92); return { b64:durl.split(',')[1], mime:'image/jpeg', w, h };
+  const durl=cv.toDataURL('image/jpeg',0.92); return { b64:durl.split(',')[1], mime:'image/jpeg', w, h, dataUrl:durl };
 }
 async function aiEnhance(p, btn){
   const c=client(); if(!c){ showToast('No database connection'); return; }
@@ -1626,7 +1626,7 @@ async function aiEnhance(p, btn){
     const src=await imgToScaledBase64(img,1536);
     const { data, error }=await c.functions.invoke('enhance-image',{ body:{ image_base64:src.b64, mime_type:src.mime } });
     if(error||!data||data.error||!data.image_base64) throw new Error((data&&data.error)||(error&&error.message)||'enhance failed');
-    enhState={ source:p, dataUrl:`data:${data.mime_type||'image/png'};base64,${data.image_base64}`, mime:data.mime_type||'image/png' };
+    enhState={ source:p, beforeUrl:src.dataUrl, dataUrl:`data:${data.mime_type||'image/png'};base64,${data.image_base64}`, mime:data.mime_type||'image/png' };
     showEnhance();
   }catch(err){ showToast('Enhance failed: '+(err.message||'error')); }
   finally{ if(btn){ btn.disabled=false; btn.textContent='✨ AI enhance'; } }
@@ -1638,13 +1638,12 @@ function showEnhance(){
     <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--ink-dark);margin-bottom:4px">AI enhance — before / after</div>
     <div class="muted" style="font-size:12.5px;margin-bottom:12px">Colour &amp; light only — content is unchanged. Save creates a <b>new, uncleared</b> photo you must review and clear by hand.</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div><div class="muted" style="font-size:11px;margin-bottom:5px">BEFORE</div><img id="enhBefore" data-path="${esc(p.thumb_path||'')}" alt="" style="width:100%;border-radius:9px;display:block"></div>
+      <div><div class="muted" style="font-size:11px;margin-bottom:5px">BEFORE</div><img src="${enhState.beforeUrl||''}" alt="" style="width:100%;border-radius:9px;display:block"></div>
       <div><div class="muted" style="font-size:11px;margin-bottom:5px">AFTER</div><img src="${enhState.dataUrl}" alt="" style="width:100%;border-radius:9px;display:block"></div>
     </div>
     <div class="dna-act" style="margin-top:14px;justify-content:flex-end"><button class="btn-sm" data-enh="discard">Discard</button><button class="btn-sm btn-post" data-enh="save">Save as new photo</button></div>
     <div id="enhMsg" style="margin-top:8px"></div>
   </div>`;
-  signThumbs(card);
   document.getElementById('enh').classList.add('on');
 }
 function closeEnh(){ const l=document.getElementById('enh'); if(l) l.classList.remove('on'); enhState=null; }
