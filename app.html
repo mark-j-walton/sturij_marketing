@@ -223,6 +223,39 @@
   .mz-pt:hover{border-color:var(--gold)} .mz-pt img{width:100%;height:100%;object-fit:cover;display:block}
   .mz-tpl{cursor:pointer}
   .mz-g{margin-bottom:12px}
+  /* ===== themed scrollbars (whole app, incl. Today's Run) ===== */
+  *{scrollbar-width:thin;scrollbar-color:rgba(139,94,44,.45) transparent}
+  ::-webkit-scrollbar{width:11px;height:11px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:rgba(139,94,44,.38);border-radius:999px;border:3px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(139,94,44,.6);background-clip:padding-box}
+  :root[data-theme="dark"] *{scrollbar-color:rgba(224,189,118,.32) transparent}
+  :root[data-theme="dark"] ::-webkit-scrollbar-thumb{background:rgba(224,189,118,.3);background-clip:padding-box}
+  :root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover{background:rgba(224,189,118,.5);background-clip:padding-box}
+  /* ===== grouped accordion (region / town / tag) — shared, designed ===== */
+  .gacc{border:1px solid var(--line-soft);border-radius:14px;margin-bottom:12px;background:var(--card);box-shadow:var(--shadow-card);overflow:hidden}
+  .gacc-h{display:flex;align-items:center;gap:12px;padding:15px 18px;cursor:pointer;user-select:none;transition:background .15s}
+  .gacc-h:hover{background:rgba(212,170,88,.05)}
+  .gacc.open .gacc-h{border-bottom:1px solid var(--line-soft)}
+  .gacc-chev{width:17px;height:17px;flex:none;color:var(--ink-muted);transition:transform .2s}
+  .gacc.open .gacc-chev{transform:rotate(90deg)}
+  .gacc-name{font-family:'DM Serif Display',serif;font-size:18px;color:var(--ink-dark);flex:1;line-height:1.2}
+  .gacc-stat{display:flex;gap:7px;align-items:center;flex:none}
+  .gpill{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;letter-spacing:.02em}
+  .gpill.red{background:rgba(169,93,65,.12);color:var(--danger)}
+  .gpill.amber{background:rgba(212,170,88,.16);color:var(--bronze)}
+  .gpill.neutral{background:rgba(35,31,27,.06);color:var(--ink-muted)}
+  :root[data-theme="dark"] .gpill.neutral{background:rgba(240,237,230,.06)}
+  .gacc-b{display:none;padding:4px 16px 14px} .gacc.open .gacc-b{display:block}
+  /* designed audit item (flat, inside a region/town group) */
+  .ag-item{border-top:1px solid var(--line-soft);padding:16px 2px}
+  .ag-item:first-child{border-top:none}
+  .ag-item-h{display:flex;align-items:center;gap:9px;margin-bottom:12px;flex-wrap:wrap}
+  .ag-item-nm{font-weight:600;color:var(--ink-dark);font-size:15px;flex:1;min-width:140px}
+  .chip-mini{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:999px}
+  .chip-mini.red{background:rgba(169,93,65,.12);color:var(--danger)}
+  .chip-mini.amber{background:rgba(212,170,88,.16);color:var(--bronze)}
+  .ag-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
   .acc.ag .acc-h{cursor:pointer}
   .ag-field{margin-bottom:16px} .ag-field:last-child{margin-bottom:0}
   .ag-field .k{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--bronze);margin-bottom:8px}
@@ -387,6 +420,11 @@
       <div id="bulkReview"></div>
     </div>
 
+    <div class="toolbar" id="auditGroupTabs" style="margin-bottom:14px">
+      <span class="muted" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase">Group by</span>
+      <button class="chip on" data-auditby="region">Region</button>
+      <button class="chip" data-auditby="town">Town</button>
+    </div>
     <div id="auditList"></div>
   </section>
 
@@ -1431,43 +1469,71 @@ async function saveGroup(g, patch, toast){
     if(toast) showToast(toast); return true;
   }catch(err){ showToast('Save failed'); return false; }
 }
+const REGION_TOWNS={
+  'West Yorkshire':['leeds','bradford','wakefield','huddersfield','halifax','dewsbury','bramley','horsforth','rawdon','guiseley','yeadon','pudsey','cleckheaton','heckmondwike','batley','morley','otley','wetherby','boston spa','swillington','garforth','pontefract','castleford','kirkstall','adel','bramhope','ilkley','keighley','bingley','shipley','brighouse','elland','mirfield','ossett','normanton','rothwell','holmfirth','meltham','bramhall'],
+  'North Yorkshire':['york','harrogate','ripon','thirsk','selby','skipton','northallerton','knaresborough','boroughbridge','tadcaster','malton','scarborough','whitby','richmond','settle','bedale','easingwold','pickering','filey'],
+  'South Yorkshire':['sheffield','barnsley','doncaster','rotherham','askern','hatfield','cantley','mexborough','wombwell','wath','penistone','stocksbridge','maltby','thorne','bentley'],
+  'East Yorkshire':['hull','beverley','bridlington','goole','driffield','pocklington','hessle','cottingham']
+};
+function inferRegion(area){ const a=String(area||'').toLowerCase();
+  if(a.includes('west yorkshire')) return 'West Yorkshire';
+  if(a.includes('north yorkshire')) return 'North Yorkshire';
+  if(a.includes('south yorkshire')) return 'South Yorkshire';
+  if(a.includes('east yorkshire')) return 'East Yorkshire';
+  for(const region in REGION_TOWNS){ if(REGION_TOWNS[region].some(t=>a.includes(t))) return region; }
+  return a?'Yorkshire (other)':'Unsorted';
+}
+let auditGroupBy='region';
 function auditCard(g){
   const st=auditStatus(g), noUrl=!hasUrl(g), noRule=!hasRule(g), cands=(g.url_candidates||[]);
-  return `<div class="acc ag" data-id="${esc(g.id)}">
-    <div class="acc-h" data-acc><span class="dot ${st==='red'?'red':'amber'}"></span>
-      <span class="t" style="color:var(--ink-dark);text-transform:none;letter-spacing:0;font-family:'DM Sans';font-weight:600">${esc(g.name)}</span>
-      <span class="c">${[noUrl?'no link':'',noRule?'no rule':''].filter(Boolean).join(' · ')}</span></div>
-    <div class="acc-b">
+  return `<div class="ag-item" data-id="${esc(g.id)}">
+    <div class="ag-item-h"><span class="dot ${st==='red'?'red':'amber'}"></span><span class="ag-item-nm">${esc(g.name)}</span>
+      ${noUrl?'<span class="chip-mini red">link</span>':''}${noRule?'<span class="chip-mini amber">rule</span>':''}</div>
+    <div class="ag-grid">
       ${noUrl?`<div class="ag-field"><div class="k">Facebook link</div>
-        ${cands.length?`<div class="muted" style="font-size:12.5px;margin-bottom:6px">Suggested from a web search on the name — open it, check it’s the right group, then confirm.</div>
+        ${cands.length?`<div class="muted" style="font-size:12px;margin-bottom:6px">Suggested by name search — open, check it’s right, confirm.</div>
           ${cands.map(u=>`<div class="ag-cand"><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)} ↗</a><button class="btn-sm btn-post" data-au="usecand" data-u="${esc(u)}">Confirm</button></div>`).join('')}`:''}
-        <div class="dna-act" style="margin-top:8px"><input class="search au-url" placeholder="https://www.facebook.com/groups/…" style="flex:1;min-width:180px"><button class="btn-sm" data-au="seturl">Save link</button></div>
+        <div class="dna-act" style="margin-top:8px"><input class="search au-url" placeholder="https://www.facebook.com/groups/…" style="flex:1;min-width:150px"><button class="btn-sm" data-au="seturl">Save</button></div>
       </div>`:''}
-      ${noRule?`<div class="ag-field"><div class="k">Posting rule — which days can you post here?</div>
+      ${noRule?`<div class="ag-field"><div class="k">Posting rule — which days?</div>
         ${dayPicker(g.posting_days)}
-        <input class="search au-note" placeholder="Optional note (e.g. ‘self-promo Tuesdays only’)" style="margin-top:8px">
-        <div class="dna-act" style="margin-top:8px"><button class="btn-sm btn-post" data-au="saverule">Save rule</button><button class="btn-sm" data-au="anyday">No restriction (any day)</button></div>
+        <input class="search au-note" placeholder="Optional note (e.g. self-promo Tuesdays only)" style="margin-top:8px">
+        <div class="dna-act" style="margin-top:8px"><button class="btn-sm btn-post" data-au="saverule">Save rule</button><button class="btn-sm" data-au="anyday">Any day</button></div>
       </div>`:''}
     </div>
   </div>`;
 }
 function renderAudit(){
   const box=document.getElementById('auditList'), head=document.getElementById('auditHead'); if(!box) return;
-  const gaps=state.groups.filter(g=>auditStatus(g)!=='green')
-    .sort((a,b)=>({red:0,amber:1}[auditStatus(a)]-{red:0,amber:1}[auditStatus(b)])||((b.fb_views||0)-(a.fb_views||0)));
+  const gaps=state.groups.filter(g=>auditStatus(g)!=='green');
   const crit=gaps.filter(g=>auditStatus(g)==='red').length;
   if(head) head.innerHTML=gaps.length
     ? `<div class="banner warn"><span class="big">${gaps.length}</span><span>group${gaps.length===1?'':'s'} need data · <b>${crit}</b> critical (no link).</span></div>`
     : `<div class="banner ok"><span class="big">✓</span><span>Every group has a link and a posting rule — nothing to audit.</span></div>`;
-  box.innerHTML=gaps.map(auditCard).join('');
+  if(!gaps.length){ box.innerHTML=''; return; }
+  const keyer = auditGroupBy==='town' ? (g=>g.area||'Unknown area') : (g=>inferRegion(g.area));
+  const buckets={}; gaps.forEach(g=>{ const k=keyer(g); (buckets[k]=buckets[k]||[]).push(g); });
+  const keys=Object.keys(buckets).sort((a,b)=>buckets[b].length-buckets[a].length);
+  box.innerHTML=keys.map(k=>{
+    const list=buckets[k].sort((a,b)=>({red:0,amber:1}[auditStatus(a)]-{red:0,amber:1}[auditStatus(b)])||((b.fb_views||0)-(a.fb_views||0)));
+    const red=list.filter(g=>auditStatus(g)==='red').length, amber=list.length-red;
+    return `<div class="gacc"><div class="gacc-h">
+      <svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      <span class="gacc-name">${esc(k)}</span>
+      <span class="gacc-stat">${red?`<span class="gpill red"><span class="dot red"></span>${red}</span>`:''}${amber?`<span class="gpill amber"><span class="dot amber"></span>${amber}</span>`:''}</span>
+    </div><div class="gacc-b">${list.map(auditCard).join('')}</div></div>`;
+  }).join('');
 }
 (function(){
+  const tabs=document.getElementById('auditGroupTabs');
+  if(tabs) tabs.addEventListener('click',e=>{ const b=e.target.closest('[data-auditby]'); if(!b) return;
+    auditGroupBy=b.dataset.auditby; tabs.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===b)); renderAudit(); });
   const list=document.getElementById('auditList');
   if(list) list.addEventListener('click', async e=>{
     const day=e.target.closest('.dchip'); if(day){ day.classList.toggle('on'); return; }
-    const h=e.target.closest('[data-acc]'); if(h){ h.parentElement.classList.toggle('open'); return; }
+    const gh=e.target.closest('.gacc-h'); if(gh){ gh.parentElement.classList.toggle('open'); return; }
     const b=e.target.closest('[data-au]'); if(!b) return;
-    const card=b.closest('.acc'); const g=state.groups.find(x=>x.id===card.dataset.id); if(!g) return;
+    const card=b.closest('.ag-item'); const g=state.groups.find(x=>x.id===card.dataset.id); if(!g) return;
     const act=b.dataset.au;
     if(act==='usecand'){ await saveGroup(g,{url:b.dataset.u,url_candidates:[]},'Link confirmed ✓'); return; }
     if(act==='seturl'){ const v=(card.querySelector('.au-url').value||'').trim(); if(!v){ showToast('Paste a link first'); return; } await saveGroup(g,{url:v,url_candidates:[]},'Link saved ✓'); return; }
