@@ -314,7 +314,44 @@
     <div class="grid stat-row" id="dashStats"><div class="loading">Loading live data…</div></div>
     <div class="section-label">Top reach — green tier</div>
     <div class="card"><table><thead><tr><th>Group</th><th>Area</th><th>Views</th><th>Impressions</th></tr></thead><tbody id="dashLeaders"></tbody></table></div>
+
+    <div class="section-label">Your posts</div>
+    <div class="acc" id="accSched">
+      <div class="acc-h" data-acc><span class="t">Planned adverts</span><span class="c" id="schedCount">—</span></div>
+      <div class="acc-b">
+        <div class="toolbar" style="margin-bottom:12px">
+          <button class="chip on" data-schedview="list">List</button>
+          <button class="chip" data-schedview="tiles">Tiles</button>
+          <span class="muted" style="font-size:12px">Posts you've planned — they show in the Run and clear when posted.</span>
+        </div>
+        <div id="schedBody"></div>
+      </div>
+    </div>
+    <div class="acc" id="accCreated">
+      <div class="acc-h" data-acc><span class="t">Posts created</span><span class="c" id="createdCount">—</span></div>
+      <div class="acc-b">
+        <div class="toolbar" style="margin-bottom:12px">
+          <select class="search" id="createdPeriod" style="max-width:190px;flex:none">
+            <option value="week">This week</option>
+            <option value="month">This month</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="custom">Between dates…</option>
+          </select>
+          <span id="createdCustom" style="display:none;gap:8px;align-items:center">
+            <input type="date" class="search" id="cFrom" style="max-width:150px;flex:none"> <input type="date" class="search" id="cTo" style="max-width:150px;flex:none">
+          </span>
+        </div>
+        <div id="createdBody"></div>
+      </div>
+    </div>
   </section>
+
+  <!-- PLANNED ADVERT VIEWER -->
+  <div class="dveil" id="pvVeil"></div>
+  <aside class="drawer" id="pvDrawer" aria-hidden="true">
+    <div class="drawer-head"><div><div class="kicker" id="pvKick">Planned advert</div><h2 id="pvName"></h2></div><button class="dx" id="pvClose" aria-label="Close">✕</button></div>
+    <div class="drawer-body" id="pvBody"></div>
+  </aside>
 
   <!-- GROUPS -->
   <section class="panel" data-panel="Groups">
@@ -515,7 +552,7 @@ function client(){ if(!sb && window.supabase) sb = window.supabase.createClient(
 
 const CAP = 12;                       // DESIGN + spec: 12 posts/day
 const TODAY = new Date().toISOString().slice(0,10);
-const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[], support:[], photos:[], templates:[], compositions:[] };
+const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[], support:[], photos:[], templates:[], compositions:[], scheduled:[] };
 
 const TABS = [
   ['Dashboard','<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></svg>'],
@@ -609,7 +646,7 @@ async function loadAll(){
   const c = client();
   if(!c){ document.getElementById('dashStats').innerHTML='<div class="loading">Couldn’t load the data library — check your connection and reload.</div>'; return; }
   try{
-    const [g,p,r,d,s,ph,tm,co] = await Promise.all([
+    const [g,p,r,d,s,ph,tm,co,sp] = await Promise.all([
       c.from('groups').select('*'),
       c.from('posting_log').select('*'),
       c.from('restrictions').select('*'),
@@ -618,10 +655,11 @@ async function loadAll(){
       c.from('photos').select('*'),
       c.from('templates').select('*'),
       c.from('compositions').select('*'),
+      c.from('scheduled_posts').select('*'),
     ]);
     state.groups = g.data||[]; state.posts = p.data||[]; state.restrictions = r.data||[]; state.dna = d.data||[]; state.support = s.data||[]; state.photos = ph.data||[];
-    state.templates = (tm.data||[]).sort((a,b)=>a.sort-b.sort); state.compositions = co.data||[];
-    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPost(); renderDNA(); renderSupport(); renderPhotos(); renderMontage(); renderAudit(); renderRun();
+    state.templates = (tm.data||[]).sort((a,b)=>a.sort-b.sort); state.compositions = co.data||[]; state.scheduled = sp.data||[];
+    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPost(); renderDNA(); renderSupport(); renderPhotos(); renderMontage(); renderAudit(); renderRun(); renderSchedules();
   }catch(e){
     document.getElementById('dashStats').innerHTML=
       '<div class="err" style="grid-column:1/-1"><b>Couldn’t reach the database.</b> Check your connection, then <button onclick="loadAll()">retry</button>.</div>';
@@ -767,11 +805,12 @@ function renderPlan(){
   if(state.planView==='today'){
     const pick=pool.slice(0,Math.max(0,left));
     document.getElementById('planBody').innerHTML=
-      `<div class="banner ok"><span class="big">${pick.length}</span><span>groups suggested for <b>today</b> (${left} slots under the cap, greens first, cooldowns respected).</span></div>
-      <div class="card"><table><thead><tr><th>#</th><th>Group</th><th>Area</th><th>Tier</th><th>Views</th></tr></thead><tbody>${
-        pick.map((g,i)=>`<tr><td class="num">${i+1}</td><td class="nm">${esc(g.name)}</td><td class="muted">${esc(g.area||'')}</td>
-          <td><span class="tchip ${g.tier}"><span class="dot ${g.tier}"></span>${g.tier}</span></td><td class="num">${num(g.fb_views)}</td></tr>`).join('')
-        ||'<tr><td colspan="5" class="muted">Cap reached or no eligible groups today.</td></tr>'}</tbody></table></div>`;
+      `<div class="banner ok"><span class="big">${pick.length}</span><span>groups suggested for <b>today</b> (${left} slots under the cap, greens first, cooldowns respected). <b>Add to Run</b> to carry one into today's queue.</span></div>
+      <div class="card"><table><thead><tr><th>#</th><th>Group</th><th>Area</th><th>Tier</th><th>Views</th><th>Plan</th></tr></thead><tbody>${
+        pick.map((g,i)=>{ const planned=!!schedFor(g); return `<tr><td class="num">${i+1}</td><td class="nm">${esc(g.name)}</td><td class="muted">${esc(g.area||'')}</td>
+          <td><span class="tchip ${g.tier}"><span class="dot ${g.tier}"></span>${g.tier}</span></td><td class="num">${num(g.fb_views)}</td>
+          <td>${planned?'<span class="tchip green"><span class="dot green"></span>planned</span>':`<button class="btn-sm" data-sched="${esc(g.id)}">Add to Run</button>`}</td></tr>`; }).join('')
+        ||'<tr><td colspan="6" class="muted">Cap reached or no eligible groups today.</td></tr>'}</tbody></table></div>`;
   } else {
     let html='<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">';
     for(let d=0;d<7;d++){
@@ -1323,7 +1362,7 @@ function compCard(co){
       <div style="font-family:'DM Serif Display',serif;font-size:17px;color:var(--ink-dark)">${esc(co.title||'Untitled advert')}</div>
       <div class="muted" style="font-size:12px;margin:4px 0 8px">${t?esc(t.name):esc(co.template_id||'')} · ${supDate(co.created_at)}${co.author?' · '+esc(co.author):''}</div>
       <div style="margin-bottom:10px">${tags||'<span class="muted">no tags</span>'}</div>
-      <div class="dna-act"><button class="btn-sm" data-cact="edit">Edit</button><button class="btn-sm" data-cact="download">⤓ PNG</button><button class="btn-sm" data-cact="delete">Delete</button></div>
+      <div class="dna-act"><button class="btn-sm btn-post" data-cact="schedule">Schedule</button><button class="btn-sm" data-cact="edit">Edit</button><button class="btn-sm" data-cact="download">⤓ PNG</button><button class="btn-sm" data-cact="delete">Delete</button></div>
     </div>
   </div>`;
 }
@@ -1341,6 +1380,7 @@ function renderCompositions(){
 async function compAction(e){
   const btn=e.target.closest('[data-cact]'); const cardEl=e.target.closest('[data-cid]'); if(!btn||!cardEl) return;
   const co=state.compositions.find(x=>x.id===cardEl.dataset.cid); if(!co) return; const act=btn.dataset.cact;
+  if(act==='schedule'){ openScheduleComp(co); return; }
   if(act==='edit'){ const t=state.templates.find(x=>x.id===co.template_id); if(!t) return;
     mz.template=t; mz.cells=(co.cells||[]).map(c2=>c2?Object.assign({},c2):null); while(mz.cells.length<t.cols*t.rows) mz.cells.push(null);
     mz.sel=-1; mzView='build'; document.querySelectorAll('[data-mzv]').forEach(x=>x.classList.toggle('on',x.dataset.mzv==='build'));
@@ -1490,6 +1530,9 @@ const run={ queue:[], i:0, drafts:[], locked:[], mode:'post', sel:[], loading:fa
 const RUN_TIER={green:0,amber:1,red:2};
 function runPool(){ return state.groups.filter(g=>lockedToday(g)&&cooldownOk(g))
   .sort((a,b)=>(RUN_TIER[a.tier]-RUN_TIER[b.tier])||((b.fb_views||0)-(a.fb_views||0))); }
+function runQueue(){ // planned (from the Plan) first, then the rest of today's safe pool
+  const safe=runPool(), sched=new Set(schedPendingToday().map(s=>s.group_id));
+  return safe.filter(g=>sched.has(g.id)).concat(safe.filter(g=>!sched.has(g.id))); }
 function runReset(){ run.drafts=[]; run.locked=[]; run.sel=[]; run.mode='post'; run.loading=false; }
 function fallbackDrafts(g,n){ const v=VOICE(g.area); const out=[]; for(let i=0;i<n;i++) out.push(v[i%v.length]); return out; }
 async function runFetchDrafts(g,count,exclude){
@@ -1526,7 +1569,7 @@ function runStepHtml(g){
   return `<div class="card">
     <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px">
       <div><div class="kicker">${esc(g.area||'Group')} · step ${run.i+1} of ${run.queue.length}</div><h2>${esc(g.name)}</h2></div>
-      <span class="tchip ${g.tier}" style="margin-left:auto"><span class="dot ${g.tier}"></span>${g.tier}</span></div>
+      <span class="tchip ${g.tier}" style="margin-left:auto"><span class="dot ${g.tier}"></span>${g.tier}</span>${schedFor(g)?'<span class="tchip green" style="margin-left:6px"><span class="dot green"></span>planned</span>':''}</div>
     <div class="run-inst" style="margin-bottom:14px">
       ${rule?`<div><b>Rules:</b> ${esc(rule)}</div>`:'<div class="muted">No posting rule set — add one in Audit for safer scheduling.</div>'}
       ${avoid?`<div style="color:var(--danger)"><b>Avoid:</b> ${esc(avoid)}</div>`:''}
@@ -1595,13 +1638,14 @@ async function runPosted(g){
   const row={ group_id:g.id, group_name:g.name, posted_on:TODAY, variation, content_hash, account:state.account, source:'app' };
   try{ const { error }=await c.from('posting_log').insert(row); if(error) throw error;
     state.posts.push(row); runReset();
-    renderCapMeter(); renderDash(); renderPlan(); renderPost(); renderRun();
+    const sp=schedFor(g); if(sp){ try{ await c.from('scheduled_posts').update({status:'posted'}).eq('id',sp.id); sp.status='posted'; }catch(e){} }
+    renderCapMeter(); renderDash(); renderPlan(); renderPost(); renderRun(); renderSchedules();
     showToast(`Logged ✓ to ${g.name}`);
   }catch(err){ msg.innerHTML='<div class="err"><b>Couldn’t log it:</b> '+esc(err.message||'insert failed')+'</div>'; }
 }
 function renderRun(){
   const box=document.getElementById('runBody'), head=document.getElementById('runHead'); if(!box) return;
-  run.queue=runPool();
+  run.queue=runQueue();
   const posted=appPostsToday(), capLeft=CAP-posted, target=posted+Math.min(run.queue.length, Math.max(0,capLeft));
   if(head) head.innerHTML=`<div class="banner ${capLeft<=0?'warn':'ok'}"><span class="big">${posted}</span><span> of ${target} posts done today · <b>${Math.max(0,capLeft)}</b> of ${CAP} left under the cap.</span></div>`;
   if(capLeft<=0){ box.innerHTML='<div class="banner warn" style="margin:0"><span><b>12/12 — cap reached.</b> Protect the account — nothing more today.</span></div>'; return; }
@@ -1611,6 +1655,114 @@ function renderRun(){
   box.innerHTML=runStepHtml(g); wireRunStep(g);
   if(state.tab==='Run' && !run.drafts.length && !run.loading) loadDrafts(g,false);
 }
+
+/* ---- Scheduled posts (Plan -> Run carry-through) + dashboard tables (§3c) ---- */
+let schedView='list';
+const schedPending=()=>state.scheduled.filter(s=>s.status==='pending').sort((a,b)=>String(a.planned_on||'').localeCompare(String(b.planned_on||'')));
+const schedPendingToday=()=>state.scheduled.filter(s=>s.status==='pending' && (!s.planned_on || s.planned_on<=TODAY));
+function schedFor(g){ return schedPendingToday().find(s=>s.group_id===g.id); }
+async function addSchedule(g, co){
+  const c=client(); if(!c||!g) return;
+  if(!co && schedFor(g)){ showToast('Already planned'); return; }
+  const row={ group_id:g.id, group_name:g.name, area:g.area, planned_on:TODAY, status:'pending', created_by:state.account };
+  if(co){ row.composition_id=co.id; row.image_ref=co.thumb_path; }
+  try{ const { data, error }=await c.from('scheduled_posts').insert(row).select().single(); if(error) throw error;
+    state.scheduled.unshift(data); renderPlan(); renderRun(); renderSchedules(); showToast(`Planned ${g.name} ✓`);
+  }catch(err){ showToast('Couldn’t schedule'); }
+}
+async function removeSchedule(id){
+  const c=client(); if(!c) return;
+  try{ const { error }=await c.from('scheduled_posts').delete().eq('id',id); if(error) throw error;
+    state.scheduled=state.scheduled.filter(s=>s.id!==id); renderPlan(); renderRun(); renderSchedules(); showToast('Removed from schedule');
+  }catch(err){ showToast('Remove failed'); }
+}
+function signSchedThumbs(scope){ const c=client(); if(!c) return;
+  const imgs=[...(scope||document).querySelectorAll('img[data-spath]')].filter(i=>i.dataset.spath&&i.dataset.signed!=='1');
+  const paths=[...new Set(imgs.map(i=>i.dataset.spath))]; if(!paths.length) return;
+  c.storage.from('photos').createSignedUrls(paths,3600).then(({data})=>{ const m={}; (data||[]).forEach(d=>{ if(d&&d.path&&d.signedUrl) m[d.path]=d.signedUrl; }); imgs.forEach(i=>{ if(m[i.dataset.spath]){ i.src=m[i.dataset.spath]; i.dataset.signed='1'; } }); }).catch(()=>{});
+}
+function renderSched(){
+  const body=document.getElementById('schedBody'); if(!body) return;
+  const rows=schedPending(); const cc=document.getElementById('schedCount'); if(cc) cc.textContent=rows.length;
+  if(!rows.length){ body.innerHTML='<div class="next-note">Nothing planned yet — use <b>Add to Run</b> on the Plan, or <b>Schedule</b> a saved advert in Montage.</div>'; return; }
+  if(schedView==='tiles'){
+    body.innerHTML=`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr))">${rows.map(s=>`
+      <div class="card" style="padding:10px;cursor:pointer" data-planview="${esc(s.id)}">
+        <div class="ph-thumb" style="width:100%;height:130px;margin-bottom:8px">${s.image_ref?`<img data-spath="${esc(s.image_ref)}" alt="">`:'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:12px">no image yet</div>'}</div>
+        <div class="nm" style="font-weight:600">${esc(s.group_name||'')}</div>
+        <div class="muted" style="font-size:12px">${s.planned_on?supDate(s.planned_on):'today'}</div>
+      </div>`).join('')}</div>`;
+  } else {
+    body.innerHTML=`<div class="card" style="padding:0;overflow-x:auto"><table><thead><tr><th>Group</th><th>Planned</th><th>Advert</th><th></th></tr></thead><tbody>${
+      rows.map(s=>`<tr><td class="nm">${esc(s.group_name||'')}</td><td class="num">${s.planned_on?supDate(s.planned_on):'today'}</td>
+        <td>${s.image_ref?'<span class="muted">montage attached</span>':(s.content?esc(String(s.content).slice(0,50)):'<span class="muted">—</span>')}</td>
+        <td><button class="btn-sm" data-planview="${esc(s.id)}">View</button> <button class="btn-sm" data-unsched="${esc(s.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`;
+  }
+  signSchedThumbs(body);
+}
+function periodStart(kind){ const now=new Date(TODAY);
+  if(kind==='week'){ const d=new Date(now); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return d.toISOString().slice(0,10); }
+  if(kind==='month'){ return TODAY.slice(0,8)+'01'; }
+  if(kind==='30'){ const d=new Date(now); d.setDate(d.getDate()-30); return d.toISOString().slice(0,10); }
+  return null; }
+function renderCreated(){
+  const body=document.getElementById('createdBody'); if(!body) return;
+  const sel=document.getElementById('createdPeriod'); const kind=sel?sel.value:'30';
+  let from='0000-01-01', to='9999-12-31';
+  if(kind==='custom'){ from=(document.getElementById('cFrom')||{}).value||'0000-01-01'; to=(document.getElementById('cTo')||{}).value||'9999-12-31'; }
+  else { from=periodStart(kind)||'0000-01-01'; }
+  const rows=state.posts.filter(p=>p.source==='app').filter(p=>{ const day=p.posted_on||String(p.created_at||'').slice(0,10); return day>=from && day<=to; })
+    .sort((a,b)=>String(b.created_at||b.posted_on||'').localeCompare(String(a.created_at||a.posted_on||'')));
+  const cc=document.getElementById('createdCount'); if(cc) cc.textContent=rows.length;
+  body.innerHTML=`<div class="card" style="padding:0;overflow-x:auto"><table><thead><tr><th>Group</th><th>Created</th><th>Posting date</th><th>Variation</th><th>Account</th></tr></thead><tbody>${
+    rows.map(p=>`<tr><td class="nm">${esc(p.group_name||'')}</td><td class="num">${p.created_at?supDate(p.created_at):'—'}</td><td class="num">${p.posted_on?supDate(p.posted_on):'—'}</td><td class="muted">${esc(p.variation||'')}</td><td class="muted">${esc(p.account||'')}</td></tr>`).join('')
+    ||'<tr><td colspan="5" class="muted">No posts in this period.</td></tr>'}</tbody></table></div>`;
+}
+function renderSchedules(){ renderSched(); renderCreated(); }
+function openPlanned(id){
+  const s=state.scheduled.find(x=>x.id===id); if(!s) return;
+  document.getElementById('pvName').textContent=s.group_name||'Planned advert';
+  document.getElementById('pvKick').textContent=s.planned_on?('Planned '+supDate(s.planned_on)):'Planned';
+  document.getElementById('pvBody').innerHTML=
+    (s.image_ref?`<div class="ph-thumb" style="width:100%;height:auto;aspect-ratio:1;margin-bottom:14px"><img data-spath="${esc(s.image_ref)}" alt="" style="object-fit:contain"></div>`:'')
+    +`<div class="field"><div class="k">Group</div><div class="v">${esc(s.group_name||'')}${s.area?' · '+esc(s.area):''}</div></div>`
+    +`<div class="field"><div class="k">Planned date</div><div class="v">${s.planned_on?supDate(s.planned_on):'today'}</div></div>`
+    +(s.content?`<div class="field"><div class="k">Copy</div><div class="v" style="white-space:pre-wrap">${esc(s.content)}</div></div>`:`<div class="field"><div class="k">Copy</div><div class="v empty">Not written yet — you'll draft it in the Run.</div></div>`)
+    +`<div class="dna-act" style="margin-top:8px"><button class="btn-sm btn-post" data-pv="run">Go to Run</button><button class="btn-sm" data-pv="remove" data-id="${esc(s.id)}">Remove</button></div>`;
+  signSchedThumbs(document.getElementById('pvBody'));
+  document.getElementById('pvDrawer').classList.add('on'); document.getElementById('pvVeil').classList.add('on'); document.getElementById('pvDrawer').setAttribute('aria-hidden','false');
+}
+function openScheduleComp(co){
+  document.getElementById('pvName').textContent='Schedule advert';
+  document.getElementById('pvKick').textContent=co.title||'Advert';
+  const groups=state.groups.slice().sort((a,b)=>(RUN_TIER[a.tier]-RUN_TIER[b.tier])||((b.fb_views||0)-(a.fb_views||0)));
+  document.getElementById('pvBody').innerHTML=
+    (co.thumb_path?`<div class="ph-thumb" style="width:100%;height:auto;aspect-ratio:1;margin-bottom:12px"><img data-spath="${esc(co.thumb_path)}" alt="" style="object-fit:contain"></div>`:'')
+    +`<div class="muted" style="font-size:12.5px;margin-bottom:8px">Pick a group to plan this advert for — it'll appear in the Run and here on the dashboard.</div>
+      <input class="search" id="pvGroupSearch" placeholder="Find a group…" style="margin-bottom:10px">
+      <div id="pvGroupList" style="max-height:340px;overflow:auto;border:1px solid var(--line-soft);border-radius:10px;padding:6px"></div>`;
+  const render=(q)=>{ const list=document.getElementById('pvGroupList'); const gs=groups.filter(g=>!q||(g.name||'').toLowerCase().includes(q)||(g.area||'').toLowerCase().includes(q)).slice(0,80);
+    list.innerHTML=gs.map(g=>`<div class="pk" data-schedgrp="${esc(g.id)}"><span class="dot ${g.tier}"></span><span class="nm">${esc(g.name)}</span><span class="a">${esc(g.area||'')}</span></div>`).join('')||'<div class="pk"><span class="a">No groups.</span></div>'; };
+  render('');
+  document.getElementById('pvGroupSearch').addEventListener('input',e=>render(e.target.value.toLowerCase().trim()));
+  document.getElementById('pvGroupList').addEventListener('click',async e=>{ const r=e.target.closest('[data-schedgrp]'); if(!r) return; const g=state.groups.find(x=>x.id===r.dataset.schedgrp); if(!g) return; await addSchedule(g, co); closePlanned(); });
+  signSchedThumbs(document.getElementById('pvBody'));
+  document.getElementById('pvDrawer').classList.add('on'); document.getElementById('pvVeil').classList.add('on'); document.getElementById('pvDrawer').setAttribute('aria-hidden','false');
+}
+function closePlanned(){ document.getElementById('pvDrawer').classList.remove('on'); document.getElementById('pvVeil').classList.remove('on'); document.getElementById('pvDrawer').setAttribute('aria-hidden','true'); }
+(function(){
+  const pb=document.getElementById('planBody'); if(pb) pb.addEventListener('click',e=>{ const b=e.target.closest('[data-sched]'); if(b){ const g=state.groups.find(x=>x.id===b.dataset.sched); if(g) addSchedule(g); } });
+  const dash=document.querySelector('[data-panel="Dashboard"]');
+  if(dash) dash.addEventListener('click',e=>{
+    const h=e.target.closest('[data-acc]'); if(h){ h.parentElement.classList.toggle('open'); return; }
+    const sv=e.target.closest('[data-schedview]'); if(sv){ schedView=sv.dataset.schedview; dash.querySelectorAll('[data-schedview]').forEach(x=>x.classList.toggle('on',x===sv)); renderSched(); return; }
+    const pvw=e.target.closest('[data-planview]'); if(pvw){ openPlanned(pvw.dataset.planview); return; }
+    const un=e.target.closest('[data-unsched]'); if(un){ removeSchedule(un.dataset.unsched); return; } });
+  const per=document.getElementById('createdPeriod'); if(per) per.addEventListener('change',()=>{ const cs=document.getElementById('createdCustom'); if(cs) cs.style.display=per.value==='custom'?'inline-flex':'none'; renderCreated(); });
+  ['cFrom','cTo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('change',renderCreated); });
+  const pvc=document.getElementById('pvClose'), pvv=document.getElementById('pvVeil'); if(pvc) pvc.addEventListener('click',closePlanned); if(pvv) pvv.addEventListener('click',closePlanned);
+  const pvBody=document.getElementById('pvBody'); if(pvBody) pvBody.addEventListener('click',e=>{ const b=e.target.closest('[data-pv]'); if(!b) return; if(b.dataset.pv==='run'){ closePlanned(); showTab('Run'); } else if(b.dataset.pv==='remove'){ removeSchedule(b.dataset.id); closePlanned(); } });
+})();
 
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 </script>
