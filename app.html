@@ -517,8 +517,8 @@
     <div class="card" style="margin-bottom:20px">
       <div class="section-label" style="margin:0 0 10px" id="thFormTitle">New theme</div>
       <div class="toolbar" style="margin-bottom:8px">
-        <input class="search" id="thCat" placeholder="Category (e.g. Media Wall)" style="max-width:240px">
-        <input class="search" id="thSub" placeholder="Sub-category (e.g. New Media Wall)" style="max-width:240px">
+        <input class="search" id="thCat" placeholder="Category (e.g. Media Wall)" style="max-width:240px" maxlength="60" autocomplete="off">
+        <input class="search" id="thSub" placeholder="Sub-category (e.g. New Media Wall)" style="max-width:240px" maxlength="80" autocomplete="off">
       </div>
       <textarea class="dna-t" id="thDesc" placeholder="Short description — what this theme is about, to steer the AI."></textarea>
       <div class="dna-act" style="margin-top:10px"><button class="btn btn-pri" id="thSave" style="height:40px">Add theme</button><button class="btn-sm" id="thCancel" style="display:none">Cancel edit</button><span class="saveflash" id="thFlash">saved ✓</span></div>
