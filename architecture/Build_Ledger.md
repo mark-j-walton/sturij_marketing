@@ -103,7 +103,7 @@ From `SPRINT_SPEC_2b` §3d (real live-UAT findings).
 2. **`Advert.zip`** (the 40 real montages) → grounds the exact formats for I10/I11.
 3. **Email provider + key** (Resend/SendGrid) → unblocks S5.
 4. **B2 scope** — brand-graphics generation in or out? (I17)
-5. **2a status** — do the 273 groups have `url` + rule captured enough to run? (gates the whole R-track)
+5. **2a status** — Audit page now BUILT (PR #15): self-emptying url+rule worklist, bulk paste-import, inline rule capture in Group detail; 14 high-confidence URL candidates seeded via web search (28→ growing as confirmed). Remaining = Polly/Mark confirming links + setting posting-days. The R-track is no longer hard-blocked (no `posting_days` = any-day), but data entry improves its quality.
 
 ---
 
