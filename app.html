@@ -854,6 +854,7 @@ function supCard(t){
     </div>
     <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--ink-dark);margin:10px 0 4px">${esc(t.title)}</div>
     ${t.detail?`<div class="vtext" style="white-space:pre-wrap">${esc(t.detail)}</div>`:''}
+    ${t.triage_summary?`<div class="field" style="margin-top:10px;margin-bottom:0"><div class="k">AI triage${t.triage_severity?` · <span class="tchip ${t.triage_severity==='high'?'red':t.triage_severity==='low'?'green':'amber'}" style="padding:2px 8px">${esc(t.triage_severity)}</span>`:''}</div><div class="v">${esc(t.triage_summary)}${t.triage_cause?` <span class="muted">— likely: ${esc(t.triage_cause)}</span>`:''}</div></div>`:''}
     ${t.status==='closed'&&t.resolution?`<div class="field" style="margin-top:12px;margin-bottom:0"><div class="k">Resolution</div><div class="v">${esc(t.resolution)}</div></div>`:''}
     <div class="dna-act" style="margin-top:12px">
       ${t.status==='open'?`<button class="btn-sm" data-act="start">Start</button>`:''}
@@ -887,8 +888,18 @@ async function addTicket(){
     state.support.unshift(data);
     ti.value=''; de.value=''; msg.innerHTML='';
     const fl=document.getElementById('supFlash'); if(fl){ fl.classList.add('on'); setTimeout(()=>fl.classList.remove('on'),1400); }
-    renderSupport(); showToast('Ticket raised ✓');
+    renderSupport(); showToast('Ticket raised ✓'); triageTicket(data);
   }catch(err){ msg.innerHTML='<div class="err"><b>Couldn’t save it:</b> '+esc(err.message||'insert failed')+'</div>'; }
+}
+async function triageTicket(t){
+  const c=client(); if(!c||!t) return;
+  try{
+    const { data, error }=await c.functions.invoke('triage-ticket',{ body:{ title:t.title, detail:t.detail, kind:t.kind } });
+    if(error||!data||data.error||!data.summary) return;   // best-effort — the ticket stands even if triage fails
+    const patch={ triage_severity:data.severity, triage_summary:data.summary, triage_cause:data.cause, triaged_at:new Date().toISOString() };
+    const up=await c.from('support_tickets').update(patch).eq('id',t.id); if(up.error) return;
+    Object.assign(t,patch); renderSupport();
+  }catch(e){}
 }
 async function setTicket(t, patch){
   const c=client(); if(!c) return;

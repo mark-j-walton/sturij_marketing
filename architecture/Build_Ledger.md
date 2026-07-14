@@ -91,7 +91,7 @@ From `SPRINT_SPEC_2b` §3d (real live-UAT findings).
 |---|---|---|
 | S1 | **Support** tab + `support_tickets` table + RLS | ✅ (PR #11) — table + approved-accounts RLS live; 7th tab |
 | S2 | New ticket (bug/feedback/feature/backlog) + list/filter/status chips | ✅ (PR #11) — raise form, status+kind filters, open→in-progress→closed flow |
-| S3 | AI **triage** on create (Edge Function classify/summarise/cause) | ❌ — fast-follow, needs `ANTHROPIC_API_KEY` in this project's Edge secrets |
+| S3 | AI **triage** on create (Edge Function classify/summarise/cause) | ✅ (PR #14) — `triage-ticket` Edge Function (key server-side, verify_jwt, approved-emails only); severity/summary/cause shown on the ticket |
 | S4 | **Short report** (`resolution`) on close — reads as a plain-English changelog | ✅ (PR #11) — resolution captured on close, shown on the ticket |
 | S5 | **Email** contact@sturij.com on bug open/close (Edge Function + provider) | 🔒 needs email provider + key |
 | S6 | AI **draft-fix** PR (later) / **escalate** when it can't | ❌ (later) |
