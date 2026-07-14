@@ -1999,8 +1999,8 @@ function runStepHtml(g){
             <div class="rd-h"><span class="rd-lab">Draft ${i+1}${abLab}</span>
               <button class="btn-sm" data-rlock="${i}" style="margin-left:auto">${run.locked[i]?'🔒 Locked':'Lock'}</button>
               <button class="btn-sm ${pos>=0?'btn-post':''}" data-rsel="${i}">${pos>=0?'Selected ✓':'Select'}</button></div>
-            <textarea data-rtext="${i}">${esc(d)}</textarea></div>`; }).join('')}
-        ${run.loading?'':`<div class="dna-act" style="margin-top:4px"><button class="btn-sm" data-run="remix">↻ Remix unlocked</button><button class="btn-sm" data-run="copy">Copy ${run.mode==='ab'?'A + B':'post'}</button></div>`}
+            <textarea data-rtext="${i}" placeholder="Write your own copy, or hit ✨ Draft 3 with AI to fill all three.">${esc(d)}</textarea></div>`; }).join('')}
+        ${run.loading?'':`<div class="dna-act" style="margin-top:4px"><button class="btn-sm ${run.drafts.some(d=>d&&d.trim())?'':'btn-post'}" data-run="remix">${run.drafts.some(d=>d&&d.trim())?'↻ Remix unlocked':'✨ Draft 3 with AI'}</button><button class="btn-sm" data-run="copy">Copy ${run.mode==='ab'?'A + B':'post'}</button></div>`}
       </div>
       <div>
         <div class="section-label" style="margin:0 0 8px">Preview — how it'll look</div>
@@ -2064,8 +2064,8 @@ function renderRun(){
   if(!run.queue.length){ box.innerHTML='<div class="next-note">Nothing safe to post right now — every group is in cooldown or off its posting day. Add rules/links in <b>Audit</b>, or check the <b>Plan</b>.</div>'; return; }
   if(run.i>=run.queue.length) run.i=0;
   const g=run.queue[run.i];
+  if(!run.drafts.length && !run.loading){ run.drafts=['','','']; run.locked=[false,false,false]; run.sel=[]; }  // start empty — draft on demand
   box.innerHTML=runStepHtml(g); wireRunStep(g);
-  if(state.tab==='Run' && !run.drafts.length && !run.loading) loadDrafts(g,false);
 }
 
 /* ---- Scheduled posts (Plan -> Run carry-through) + dashboard tables (§3c) ---- */
