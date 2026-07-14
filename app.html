@@ -233,6 +233,27 @@
     font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;cursor:pointer}
   .dchip.on{background:rgba(212,170,88,.16);border-color:var(--gold);color:var(--bronze)}
   :root[data-theme="dark"] .dchip.on{color:var(--gold)}
+  .run-two{display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start}
+  @media(max-width:900px){.run-two{grid-template-columns:1fr}}
+  .rd{border:1px solid var(--line-soft);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--card)}
+  .rd.sel{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+  .rd-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .rd-lab{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--bronze)}
+  .rd textarea{width:100%;min-height:92px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--ink-body);font-family:'DM Sans';font-size:14px;line-height:1.55;resize:vertical}
+  .rd textarea:focus{outline:2px solid var(--navy);border-color:var(--gold)}
+  .run-inst{font-size:13px;line-height:1.7;color:var(--ink-body)}
+  .fbcard{max-width:380px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;color:#1c1e21;box-shadow:var(--shadow-card)}
+  :root[data-theme="dark"] .fbcard{background:#242526;color:#e4e6eb;border-color:rgba(255,255,255,.12)}
+  .fbcard-h{display:flex;align-items:center;gap:10px;padding:12px 14px}
+  .fbcard-av{width:40px;height:40px;border-radius:999px;background:linear-gradient(135deg,var(--navy),var(--bronze));color:#fff;display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:19px;flex:none}
+  .fbcard-nm{font-weight:600;font-size:14px} .fbcard-meta{font-size:12px;color:#65676b}
+  :root[data-theme="dark"] .fbcard-meta{color:#b0b3b8}
+  .fbcard-body{padding:2px 14px 12px;font-size:14px;line-height:1.5;white-space:pre-wrap}
+  .fbcard-img{width:100%;aspect-ratio:1.9;background:#e4e6eb;display:flex;align-items:center;justify-content:center;color:#8a8d91;font-size:12px;font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
+  :root[data-theme="dark"] .fbcard-img{background:#3a3b3c;color:#b0b3b8}
+  .fbcard-act{display:flex;border-top:1px solid rgba(0,0,0,.08);color:#65676b;font-size:13px;font-weight:600}
+  :root[data-theme="dark"] .fbcard-act{border-top-color:rgba(255,255,255,.1);color:#b0b3b8}
+  .fbcard-act span{flex:1;text-align:center;padding:8px}
 
   /* ===== Responsive — Polly on tablet/phone ===== */
   @media(max-width:860px){
@@ -342,6 +363,15 @@
       <button class="chip" data-pv="week">This week</button>
     </div>
     <div id="planBody"></div>
+  </section>
+
+  <!-- RUN (Today's Run) -->
+  <section class="panel" data-panel="Run">
+    <span class="kicker">Today's Run</span>
+    <h1>Today's <em>Run</em></h1>
+    <p class="sub">Your guided posting queue — greens first, under the 12/day cap, only groups that are safe today. Draft with AI, copy, post by hand on Facebook, log it, next. <b>The app never posts for you.</b></p>
+    <div id="runHead"></div>
+    <div id="runBody"></div>
   </section>
 
   <!-- POST -->
@@ -492,6 +522,7 @@ const TABS = [
   ['Groups','<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>'],
   ['Audit','<svg viewBox="0 0 24 24"><path d="M9 3h6a1 1 0 0 1 1 1v1h2a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2V4a1 1 0 0 1 1-1z"/><path d="M9 13l2 2 4-4"/></svg>'],
   ['Plan','<svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>'],
+  ['Run','<svg viewBox="0 0 24 24"><path d="M4 5h9M4 10h7M4 15h7M4 20h5"/><path d="M15 11l6 3.5-6 3.5z"/></svg>'],
   ['Post','<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>'],
   ['DNA','<svg viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22.5v-18z"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/></svg>'],
   ['Safety','<svg viewBox="0 0 24 24"><path d="M12 3l8 3.5v5c0 5-3.4 8.7-8 9.5-4.6-.8-8-4.5-8-9.5v-5L12 3z"/></svg>'],
@@ -509,6 +540,7 @@ function showTab(t){
   document.querySelectorAll('.rail-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on', p.dataset.panel===t));
   if(t==='Montage' && typeof mzDraw==='function') setTimeout(mzDraw,0);   // canvas needs a visible width to size correctly
+  if(t==='Run' && typeof renderRun==='function') renderRun();             // (re)build the queue + kick off drafting when opened
 }
 
 /* ---- theme (from index.html) ---- */
@@ -589,7 +621,7 @@ async function loadAll(){
     ]);
     state.groups = g.data||[]; state.posts = p.data||[]; state.restrictions = r.data||[]; state.dna = d.data||[]; state.support = s.data||[]; state.photos = ph.data||[];
     state.templates = (tm.data||[]).sort((a,b)=>a.sort-b.sort); state.compositions = co.data||[];
-    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPost(); renderDNA(); renderSupport(); renderPhotos(); renderMontage(); renderAudit();
+    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPost(); renderDNA(); renderSupport(); renderPhotos(); renderMontage(); renderAudit(); renderRun();
   }catch(e){
     document.getElementById('dashStats').innerHTML=
       '<div class="err" style="grid-column:1/-1"><b>Couldn’t reach the database.</b> Check your connection, then <button onclick="loadAll()">retry</button>.</div>';
@@ -1452,6 +1484,133 @@ async function confirmBulk(){
   renderAudit(); renderGroups(); renderPost(); showToast(`Confirmed ${ok} link(s) ✓`);
 }
 (function(){ const b=document.getElementById('bulkParse'); if(b) b.addEventListener('click',parseBulk); })();
+
+/* ---- Today's Run (guided paste queue with AI drafts) ---- */
+const run={ queue:[], i:0, drafts:[], locked:[], mode:'post', sel:[], loading:false };
+const RUN_TIER={green:0,amber:1,red:2};
+function runPool(){ return state.groups.filter(g=>lockedToday(g)&&cooldownOk(g))
+  .sort((a,b)=>(RUN_TIER[a.tier]-RUN_TIER[b.tier])||((b.fb_views||0)-(a.fb_views||0))); }
+function runReset(){ run.drafts=[]; run.locked=[]; run.sel=[]; run.mode='post'; run.loading=false; }
+function fallbackDrafts(g,n){ const v=VOICE(g.area); const out=[]; for(let i=0;i<n;i++) out.push(v[i%v.length]); return out; }
+async function runFetchDrafts(g,count,exclude){
+  const c=client(); if(!c) return null;
+  try{ const { data, error }=await c.functions.invoke('draft-copy',{ body:{
+      group:{name:g.name,area:g.area,tier:g.tier,official_rules:g.official_rules,posting_note:g.posting_note,avoid:g.avoid,context_summary:g.context_summary},
+      dna:state.dna.map(d=>({title:d.title,category:d.category,body:d.body})), count, exclude } });
+    if(error||!data||data.error||!Array.isArray(data.drafts)||!data.drafts.length) return null;
+    return data.drafts;
+  }catch(e){ return null; }
+}
+async function loadDrafts(g, remix){
+  run.loading=true; renderRun();
+  if(remix){
+    const idxs=run.drafts.map((_,i)=>i).filter(i=>!run.locked[i]); const need=idxs.length||run.drafts.length;
+    const fresh=(await runFetchDrafts(g,need,run.drafts.filter((_,i)=>!run.locked[i])))||fallbackDrafts(g,need);
+    let k=0; run.drafts=run.drafts.map((d,i)=>{ if(run.locked[i]) return d; const nd=fresh[k++]; return nd!=null?nd:d; });
+  } else {
+    const fresh=(await runFetchDrafts(g,3,[]))||fallbackDrafts(g,3);
+    run.drafts=fresh.slice(0,3); run.locked=run.drafts.map(()=>false); run.sel=[];
+  }
+  run.loading=false; renderRun();
+}
+function runSelect(i){
+  const max=run.mode==='ab'?2:1, pos=run.sel.indexOf(i);
+  if(pos>=0) run.sel.splice(pos,1);
+  else { if(run.sel.length>=max) run.sel.shift(); run.sel.push(i); }
+  renderRun();
+}
+function runStepHtml(g){
+  const rule=[(g.posting_days&&g.posting_days.length)?('Days — '+g.posting_days.join(', ')):'', g.official_rules, g.posting_note].filter(Boolean).join(' · ');
+  const avoid=(g.avoid&&g.avoid.length)?g.avoid.join(', '):'';
+  const previewText=(run.sel.length?run.drafts[run.sel[0]]:run.drafts[0])||'Your post copy will appear here.';
+  return `<div class="card">
+    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px">
+      <div><div class="kicker">${esc(g.area||'Group')} · step ${run.i+1} of ${run.queue.length}</div><h2>${esc(g.name)}</h2></div>
+      <span class="tchip ${g.tier}" style="margin-left:auto"><span class="dot ${g.tier}"></span>${g.tier}</span></div>
+    <div class="run-inst" style="margin-bottom:14px">
+      ${rule?`<div><b>Rules:</b> ${esc(rule)}</div>`:'<div class="muted">No posting rule set — add one in Audit for safer scheduling.</div>'}
+      ${avoid?`<div style="color:var(--danger)"><b>Avoid:</b> ${esc(avoid)}</div>`:''}
+    </div>
+    <div class="toolbar" style="margin-bottom:14px">
+      <button class="chip ${run.mode==='post'?'on':''}" data-rmode="post">Single post</button>
+      <button class="chip ${run.mode==='ab'?'on':''}" data-rmode="ab">A/B test</button>
+      <span class="muted" style="font-size:12px">${run.mode==='ab'?'Pick two — first is A, second is B. Facebook runs the test; we just prep both.':'Pick one draft.'}</span>
+    </div>
+    <div class="run-two">
+      <div>
+        ${run.loading?'<div class="loading">Drafting with AI…</div>':run.drafts.map((d,i)=>{
+          const pos=run.sel.indexOf(i), abLab=(run.mode==='ab'&&pos>=0)?' · '+['A','B'][pos]:'';
+          return `<div class="rd ${pos>=0?'sel':''}">
+            <div class="rd-h"><span class="rd-lab">Draft ${i+1}${abLab}</span>
+              <button class="btn-sm" data-rlock="${i}" style="margin-left:auto">${run.locked[i]?'🔒 Locked':'Lock'}</button>
+              <button class="btn-sm ${pos>=0?'btn-post':''}" data-rsel="${i}">${pos>=0?'Selected ✓':'Select'}</button></div>
+            <textarea data-rtext="${i}">${esc(d)}</textarea></div>`; }).join('')}
+        ${run.loading?'':`<div class="dna-act" style="margin-top:4px"><button class="btn-sm" data-run="remix">↻ Remix unlocked</button><button class="btn-sm" data-run="copy">Copy ${run.mode==='ab'?'A + B':'post'}</button></div>`}
+      </div>
+      <div>
+        <div class="section-label" style="margin:0 0 8px">Preview — how it'll look</div>
+        <div class="fbcard">
+          <div class="fbcard-h"><div class="fbcard-av">S</div><div><div class="fbcard-nm">Sturij</div><div class="fbcard-meta">Just now · 🌐</div></div></div>
+          <div class="fbcard-body">${esc(previewText)}</div>
+          <div class="fbcard-img">image / montage — add in Phase 3</div>
+          <div class="fbcard-act"><span>👍 Like</span><span>💬 Comment</span><span>↪ Share</span></div>
+        </div>
+        <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+          ${g.url?`<a class="btn-sm" href="${esc(g.url)}" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">Open group on Facebook ↗</a>`:`<div class="err" style="margin:0">No link yet — add it in <b>Audit</b> to jump straight to the group.</div>`}
+          <button class="btn btn-pri" data-run="posted" style="height:44px">Posted ✓ — next</button>
+          <button class="btn-sm" data-run="skip">Skip this group</button>
+        </div>
+      </div>
+    </div>
+    <div id="runMsg" style="margin-top:12px"></div>
+  </div>`;
+}
+function wireRunStep(g){
+  const box=document.getElementById('runBody'); if(!box) return;
+  box.querySelectorAll('[data-rtext]').forEach(t=>t.addEventListener('input',()=>{ run.drafts[+t.dataset.rtext]=t.value; }));
+  box.querySelectorAll('[data-rmode]').forEach(b=>b.addEventListener('click',()=>{ if(run.mode!==b.dataset.rmode){ run.mode=b.dataset.rmode; run.sel=[]; renderRun(); } }));
+  box.querySelectorAll('[data-rlock]').forEach(b=>b.addEventListener('click',()=>{ const i=+b.dataset.rlock; run.locked[i]=!run.locked[i]; renderRun(); }));
+  box.querySelectorAll('[data-rsel]').forEach(b=>b.addEventListener('click',()=>runSelect(+b.dataset.rsel)));
+  const remix=box.querySelector('[data-run="remix"]'); if(remix) remix.addEventListener('click',()=>loadDrafts(g,true));
+  const copy=box.querySelector('[data-run="copy"]'); if(copy) copy.addEventListener('click',runCopy);
+  const posted=box.querySelector('[data-run="posted"]'); if(posted) posted.addEventListener('click',()=>runPosted(g));
+  const skip=box.querySelector('[data-run="skip"]'); if(skip) skip.addEventListener('click',()=>{ run.i++; runReset(); renderRun(); });
+}
+function runCopy(){
+  const msg=document.getElementById('runMsg');
+  if(run.mode==='ab'){ if(run.sel.length<2){ if(msg) msg.innerHTML='<div class="err">Pick two drafts for A/B.</div>'; return; }
+    navigator.clipboard.writeText(`A:\n${run.drafts[run.sel[0]]||''}\n\nB:\n${run.drafts[run.sel[1]]||''}`).then(()=>showToast('Copied A + B ✓')).catch(()=>{}); }
+  else { const i=run.sel.length?run.sel[0]:0; navigator.clipboard.writeText(run.drafts[i]||'').then(()=>showToast('Copied ✓')).catch(()=>{}); }
+}
+async function runPosted(g){
+  const msg=document.getElementById('runMsg');
+  if(run.mode==='ab' && run.sel.length<2){ msg.innerHTML='<div class="err">Pick two drafts (A and B) before logging.</div>'; return; }
+  if(CAP-appPostsToday()<=0){ msg.innerHTML='<div class="err"><b>Blocked:</b> 12/12 cap reached — protect the account.</div>'; return; }
+  if(cooldownLeft(g)>0){ msg.innerHTML=`<div class="err"><b>Blocked:</b> ${esc(g.name)} is in cooldown (${cooldownLeft(g)} days left).</div>`; return; }
+  if(!lockedToday(g)){ msg.innerHTML=`<div class="err"><b>Planning only:</b> ${esc(g.name)} isn’t scheduled to post today.</div>`; return; }
+  const c=client(); if(!c){ msg.innerHTML='<div class="err">No database connection.</div>'; return; }
+  let variation, content_hash;
+  if(run.mode==='ab'){ variation='A/B'; content_hash=phash(run.drafts[run.sel[0]]||'')+'/'+phash(run.drafts[run.sel[1]]||''); }
+  else { const i=run.sel.length?run.sel[0]:0; variation='A'; content_hash=phash(run.drafts[i]||''); }
+  const row={ group_id:g.id, group_name:g.name, posted_on:TODAY, variation, content_hash, account:state.account, source:'app' };
+  try{ const { error }=await c.from('posting_log').insert(row); if(error) throw error;
+    state.posts.push(row); runReset();
+    renderCapMeter(); renderDash(); renderPlan(); renderPost(); renderRun();
+    showToast(`Logged ✓ to ${g.name}`);
+  }catch(err){ msg.innerHTML='<div class="err"><b>Couldn’t log it:</b> '+esc(err.message||'insert failed')+'</div>'; }
+}
+function renderRun(){
+  const box=document.getElementById('runBody'), head=document.getElementById('runHead'); if(!box) return;
+  run.queue=runPool();
+  const posted=appPostsToday(), capLeft=CAP-posted, target=posted+Math.min(run.queue.length, Math.max(0,capLeft));
+  if(head) head.innerHTML=`<div class="banner ${capLeft<=0?'warn':'ok'}"><span class="big">${posted}</span><span> of ${target} posts done today · <b>${Math.max(0,capLeft)}</b> of ${CAP} left under the cap.</span></div>`;
+  if(capLeft<=0){ box.innerHTML='<div class="banner warn" style="margin:0"><span><b>12/12 — cap reached.</b> Protect the account — nothing more today.</span></div>'; return; }
+  if(!run.queue.length){ box.innerHTML='<div class="next-note">Nothing safe to post right now — every group is in cooldown or off its posting day. Add rules/links in <b>Audit</b>, or check the <b>Plan</b>.</div>'; return; }
+  if(run.i>=run.queue.length) run.i=0;
+  const g=run.queue[run.i];
+  box.innerHTML=runStepHtml(g); wireRunStep(g);
+  if(state.tab==='Run' && !run.drafts.length && !run.loading) loadDrafts(g,false);
+}
 
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 </script>
