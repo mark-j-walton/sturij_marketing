@@ -252,6 +252,10 @@
   .legend{list-style:none;display:flex;flex-direction:column;gap:7px;margin:12px 0 0;padding:0;font-size:13.5px;color:var(--ink-muted)}
   .legend li{display:flex;align-items:center;gap:10px}
   .legend b{color:var(--ink-body)}
+  .pager{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 4px;margin-bottom:12px}
+  .pager-size{display:flex;align-items:center;gap:8px;color:var(--ink-muted);font-size:12.5px}
+  .pager-info{color:var(--ink-muted);font-family:'IBM Plex Mono',monospace;font-size:12px}
+  .pager-nav{display:flex;gap:8px;margin-left:auto}
   /* advert tiles + lightbox (shared: Photos>Adverts, dashboard showcase) */
   .adv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
   .adv-tile{border-radius:12px;overflow:hidden;cursor:pointer;background:var(--card);border:1px solid var(--line-soft);box-shadow:var(--shadow-card);transition:transform .12s,box-shadow .12s}
@@ -424,7 +428,7 @@
   <section class="panel" data-panel="Groups">
     <span class="kicker">Group Ledger</span>
     <h1>Groups</h1>
-    <p class="sub">All 273 groups, live. Search, filter by tier, read real Facebook reach.</p>
+    <p class="sub">All 273 groups, live — grouped by region or town. Search, filter by tier, click a group to open its detail. Tier counts sit on each header.</p>
     <div class="toolbar">
       <input class="search" id="grpSearch" placeholder="Search groups or areas…">
       <button class="chip on" data-filter="all">All</button>
@@ -432,10 +436,12 @@
       <button class="chip" data-filter="amber"><span class="dot amber"></span>Amber</button>
       <button class="chip" data-filter="red"><span class="dot red"></span>Red</button>
     </div>
-    <div class="card"><table>
-      <thead><tr><th>Group</th><th>Area</th><th>Tier</th><th>Views</th><th>Impressions</th><th>Engagement</th></tr></thead>
-      <tbody id="grpBody"></tbody>
-    </table></div>
+    <div class="toolbar" id="grpGroupTabs" style="margin-bottom:14px">
+      <span class="muted" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase">Group by</span>
+      <button class="chip on" data-grpby="region">Region</button>
+      <button class="chip" data-grpby="town">Town</button>
+    </div>
+    <div id="grpBody"></div>
     <p class="sub muted" style="margin-top:12px" id="grpCount"></p>
   </section>
 
@@ -870,23 +876,37 @@ function renderAdShowcase(){
 }
 
 /* ---- groups ---- */
+let grpGroupBy='region';
+function groupRow(g){ return `<div class="pk" data-gopen="${esc(g.id)}"><span class="dot ${g.tier}"></span><span class="nm">${esc(g.name)}</span><span class="a">${esc(g.area||'—')}${g.fb_views!=null?' · '+num(g.fb_views)+' views':''}</span></div>`; }
 function renderGroups(){
-  const q=(document.getElementById('grpSearch').value||'').toLowerCase();
+  const box=document.getElementById('grpBody'); if(!box) return;
+  const q=(document.getElementById('grpSearch').value||'').toLowerCase().trim();
+  const tsort=(a,b)=>({green:0,amber:1,red:2}[a.tier]-{green:0,amber:1,red:2}[b.tier])||((b.fb_views||0)-(a.fb_views||0));
   let rows=state.groups.filter(x=>state.filter==='all'||x.tier===state.filter);
   if(q) rows=rows.filter(x=>(x.name||'').toLowerCase().includes(q)||(x.area||'').toLowerCase().includes(q));
-  rows.sort((a,b)=>(b.fb_views||0)-(a.fb_views||0));
-  document.getElementById('grpBody').innerHTML=rows.map(x=>
-    `<tr class="rowlink" data-id="${x.id}"><td class="nm">${esc(x.name)}</td><td class="muted">${esc(x.area||'')}</td>
-      <td><span class="tchip ${x.tier}"><span class="dot ${x.tier}"></span>${x.tier}</span></td>
-      <td class="num">${num(x.fb_views)}</td><td class="num">${num(x.fb_impressions)}</td><td class="num">${num(x.fb_engagement)}</td></tr>`
-  ).join('')||'<tr><td colspan="6" class="muted">No matching groups.</td></tr>';
   document.getElementById('grpCount').textContent=`${rows.length} of ${state.groups.length} groups shown`;
+  if(!rows.length){ box.innerHTML='<div class="next-note">No matching groups.</div>'; return; }
+  if(q){ box.innerHTML=`<div class="card" style="padding:6px">${rows.sort(tsort).slice(0,80).map(groupRow).join('')}</div>`; return; }
+  const keyer = grpGroupBy==='town' ? (g=>g.area||'Unknown area') : (g=>inferRegion(g.area));
+  const buckets={}; rows.forEach(g=>{ const k=keyer(g); (buckets[k]=buckets[k]||[]).push(g); });
+  const keys=Object.keys(buckets).sort((a,b)=>buckets[b].length-buckets[a].length);
+  box.innerHTML=keys.map(k=>{
+    const list=buckets[k].sort(tsort);
+    const gr=list.filter(g=>g.tier==='green').length, am=list.filter(g=>g.tier==='amber').length, rd=list.filter(g=>g.tier==='red').length;
+    return `<div class="gacc"><div class="gacc-h">
+      <svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      <span class="gacc-name">${esc(k)}</span>
+      <span class="gacc-stat"><span class="gpill neutral">${list.length}</span>${gr?`<span class="gpill green"><span class="dot green"></span>${gr}</span>`:''}${am?`<span class="gpill amber"><span class="dot amber"></span>${am}</span>`:''}${rd?`<span class="gpill red"><span class="dot red"></span>${rd}</span>`:''}</span>
+    </div><div class="gacc-b"><div style="padding:2px">${list.map(groupRow).join('')}</div></div></div>`;
+  }).join('');
 }
 document.getElementById('grpSearch').addEventListener('input',renderGroups);
 document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{
   state.filter=b.dataset.filter;
   document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('on',x===b)); renderGroups();
 }));
+(function(){ const t=document.getElementById('grpGroupTabs'); if(t) t.addEventListener('click',e=>{ const b=e.target.closest('[data-grpby]'); if(!b) return;
+  grpGroupBy=b.dataset.grpby; t.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===b)); renderGroups(); }); })();
 
 /* ---- group detail drawer (click a row) ---- */
 const drawer=document.getElementById('drawer'), dveil=document.getElementById('dveil');
@@ -971,7 +991,7 @@ document.getElementById('gdBody').addEventListener('click', async e=>{
   if(act==='seturl'){ const v=(b.closest('[data-gdurl]').querySelector('.gd-url').value||'').trim(); if(!v) return; if(await saveGroup(g,{url:v,url_candidates:[]},'Link saved ✓')) openGroup(g.id); return; }
   if(act==='changeurl'){ if(await saveGroup(g,{url:null},'Cleared — re-enter')) openGroup(g.id); return; }
 });
-document.getElementById('grpBody').addEventListener('click',e=>{ const tr=e.target.closest('tr[data-id]'); if(tr) openGroup(tr.dataset.id); });
+document.getElementById('grpBody').addEventListener('click',e=>{ const gh=e.target.closest('.gacc-h'); if(gh){ gh.parentElement.classList.toggle('open'); return; } const r=e.target.closest('[data-gopen]'); if(r) openGroup(r.dataset.gopen); });
 document.getElementById('gdClose').addEventListener('click',closeDrawer);
 dveil.addEventListener('click',closeDrawer);
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrawer(); });
@@ -1356,6 +1376,19 @@ function supAction(e){
 
 /* ---- Photos (private library + human clearance gate) ---- */
 let phView='recent';
+let phPageSize=10, phPage=0;
+function phPager(items){
+  const total=items.length, pages=Math.max(1,Math.ceil(total/phPageSize));
+  if(phPage>=pages) phPage=pages-1; if(phPage<0) phPage=0;
+  const start=phPage*phPageSize, end=Math.min(total,start+phPageSize);
+  const sizes=[10,20,30,40,50].map(n=>`<option value="${n}"${n===phPageSize?' selected':''}>${n}</option>`).join('');
+  const bar = total>10 ? `<div class="pager">
+    <label class="pager-size">Show <select id="phPageSize" class="search" style="width:auto;flex:none;padding:6px 8px">${sizes}</select> per page</label>
+    <span class="pager-info">${start+1}–${end} of ${total}</span>
+    <span class="pager-nav"><button class="btn-sm" data-phpage="prev"${phPage<=0?' disabled':''}>‹ Prev</button><button class="btn-sm" data-phpage="next"${phPage>=pages-1?' disabled':''}>Next ›</button></span>
+  </div>` : '';
+  return { slice: items.slice(start,end), bar };
+}
 const CLEAR_CHECKS=[
   'No recognisable faces (or you have permission to show them)',
   'No valuables, keys, alarms or security details visible',
@@ -1457,8 +1490,10 @@ function renderPhotos(){
     const seen=new Set(); items=[]; [...byDate,...byUse].forEach(p=>{ if(!seen.has(p.id)){ seen.add(p.id); items.push(p); } });
   }
   if(!q) items=items.slice().sort((a,b)=>((a.description?1:0)-(b.description?1:0)));   // missing-description floats top
-  box.innerHTML=banner
-    +(items.length?items.map(photoCard).join(''):`<div class="next-note">${list.length?'No photos match.':'No photos yet — add your first above.'}</div>`);
+  const pg=phPager(items);
+  box.innerHTML=banner+pg.bar
+    +(items.length?pg.slice.map(photoCard).join(''):`<div class="next-note">${list.length?'No photos match.':'No photos yet — add your first above.'}</div>`)
+    +(items.length>phPageSize?pg.bar.replace('id="phPageSize"','id="phPageSizeB"'):'');
   signThumbs();
 }
 async function setPhoto(p,patch,toast){
@@ -1469,6 +1504,8 @@ async function setPhoto(p,patch,toast){
   catch(err){ showToast('Update failed'); }
 }
 function phAction(e){
+  const ps=e.target.closest('#phPageSize,#phPageSizeB'); if(ps){ phPageSize=+ps.value||10; phPage=0; renderPhotos(); return; }
+  const pn=e.target.closest('[data-phpage]'); if(pn){ phPage+=(pn.dataset.phpage==='next'?1:-1); renderPhotos(); return; }
   const gh=e.target.closest('.gacc-h'); if(gh){ gh.parentElement.classList.toggle('open'); return; }
   const cardEl=e.target.closest('.ph-c'); if(!cardEl) return;
   const p=state.photos.find(x=>x.id===cardEl.dataset.id); if(!p) return;
@@ -1484,8 +1521,8 @@ function phAction(e){
 (function(){
   const pick=document.getElementById('phPick'), file=document.getElementById('phFile');
   if(pick&&file){ pick.addEventListener('click',()=>file.click()); file.addEventListener('change',()=>{ if(file.files&&file.files.length) uploadPhotos([...file.files]); file.value=''; }); }
-  const s=document.getElementById('phSearch'); if(s) s.addEventListener('input',renderPhotos);
-  document.querySelectorAll('[data-phv]').forEach(b=>b.addEventListener('click',()=>{ phView=b.dataset.phv;
+  const s=document.getElementById('phSearch'); if(s) s.addEventListener('input',()=>{ phPage=0; renderPhotos(); });
+  document.querySelectorAll('[data-phv]').forEach(b=>b.addEventListener('click',()=>{ phView=b.dataset.phv; phPage=0;
     document.querySelectorAll('[data-phv]').forEach(x=>x.classList.toggle('on',x===b)); const se=document.getElementById('phSearch'); if(se) se.value=''; renderPhotos(); }));
   const body=document.getElementById('phBody'); if(body){ body.addEventListener('click',phAction); body.addEventListener('change',phAction); }
 })();
@@ -1970,8 +2007,8 @@ function runStepHtml(g){
             <div class="rd-h"><span class="rd-lab">Draft ${i+1}${abLab}</span>
               <button class="btn-sm" data-rlock="${i}" style="margin-left:auto">${run.locked[i]?'🔒 Locked':'Lock'}</button>
               <button class="btn-sm ${pos>=0?'btn-post':''}" data-rsel="${i}">${pos>=0?'Selected ✓':'Select'}</button></div>
-            <textarea data-rtext="${i}">${esc(d)}</textarea></div>`; }).join('')}
-        ${run.loading?'':`<div class="dna-act" style="margin-top:4px"><button class="btn-sm" data-run="remix">↻ Remix unlocked</button><button class="btn-sm" data-run="copy">Copy ${run.mode==='ab'?'A + B':'post'}</button></div>`}
+            <textarea data-rtext="${i}" placeholder="Write your own copy, or hit ✨ Draft 3 with AI to fill all three.">${esc(d)}</textarea></div>`; }).join('')}
+        ${run.loading?'':`<div class="dna-act" style="margin-top:4px"><button class="btn-sm ${run.drafts.some(d=>d&&d.trim())?'':'btn-post'}" data-run="remix">${run.drafts.some(d=>d&&d.trim())?'↻ Remix unlocked':'✨ Draft 3 with AI'}</button><button class="btn-sm" data-run="copy">Copy ${run.mode==='ab'?'A + B':'post'}</button></div>`}
       </div>
       <div>
         <div class="section-label" style="margin:0 0 8px">Preview — how it'll look</div>
@@ -2035,8 +2072,8 @@ function renderRun(){
   if(!run.queue.length){ box.innerHTML='<div class="next-note">Nothing safe to post right now — every group is in cooldown or off its posting day. Add rules/links in <b>Audit</b>, or check the <b>Plan</b>.</div>'; return; }
   if(run.i>=run.queue.length) run.i=0;
   const g=run.queue[run.i];
+  if(!run.drafts.length && !run.loading){ run.drafts=['','','']; run.locked=[false,false,false]; run.sel=[]; }  // start empty — draft on demand
   box.innerHTML=runStepHtml(g); wireRunStep(g);
-  if(state.tab==='Run' && !run.drafts.length && !run.loading) loadDrafts(g,false);
 }
 
 /* ---- Scheduled posts (Plan -> Run carry-through) + dashboard tables (§3c) ---- */
