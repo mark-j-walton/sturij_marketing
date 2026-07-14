@@ -277,6 +277,20 @@
   .tb-line.h{left:0;right:0;height:3px;margin-top:-1.5px;cursor:ns-resize}
   .tb-line:hover{box-shadow:0 0 0 3px rgba(212,170,88,.25)}
   .tb-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  /* reel studio + video tiles */
+  .reel-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;max-height:280px;overflow:auto;padding:2px}
+  .reel-pt{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid transparent}
+  .reel-pt img{width:100%;height:100%;object-fit:cover;display:block}
+  .reel-pt.on{border-color:var(--bronze)}
+  .reel-pt .ord{position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:var(--bronze);color:#181410;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .vid-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+  .vid-tile{border-radius:12px;overflow:hidden;background:var(--card);border:1px solid var(--line-soft);box-shadow:var(--shadow-card)}
+  .vid-thumb{position:relative;aspect-ratio:1;background:#0e1820;cursor:pointer}
+  .vid-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .vid-thumb .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:34px;color:rgba(255,255,255,.9);text-shadow:0 2px 8px rgba(0,0,0,.5)}
+  .vid-thumb .kindtag{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:3px 7px;border-radius:999px}
+  .vid-b{padding:10px}
+  .vlbx-video{max-width:min(90vw,720px);max-height:80vh;border-radius:10px;background:#000}
   /* advert tiles + lightbox (shared: Photos>Adverts, dashboard showcase) */
   .adv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
   .adv-tile{border-radius:12px;overflow:hidden;cursor:pointer;background:var(--card);border:1px solid var(--line-soft);box-shadow:var(--shadow-card);transition:transform .12s,box-shadow .12s}
@@ -636,6 +650,7 @@
     <div class="toolbar">
       <button class="chip on" data-phmode="photos">Photos</button>
       <button class="chip" data-phmode="adverts">Adverts</button>
+      <button class="chip" data-phmode="videos">Videos</button>
     </div>
 
     <div id="phPhotos">
@@ -665,6 +680,32 @@
         <input class="search" id="phAdvSearch" placeholder="Search saved adverts by title or tag…">
       </div>
       <div id="phAdvBody"></div>
+    </div>
+
+    <div id="phVideos" style="display:none">
+      <div class="card" style="margin:14px 0 18px">
+        <div class="section-label" style="margin:0 0 10px">Reel studio — build a video from photos</div>
+        <p class="muted" style="font-size:12.5px;margin-bottom:12px">Pick <b>cleared</b> photos in the order you want them, choose how long each shows and the transition, then generate. The reel is rendered in your browser, saved to your library and downloaded. <b>Only cleared photos can be used.</b></p>
+        <div id="reelPicker" class="reel-pick"></div>
+        <div class="toolbar" style="margin-top:12px;align-items:center;flex-wrap:wrap">
+          <input class="search" id="reelTitle" placeholder="Reel title (optional)" style="min-width:180px">
+          <label class="muted" style="font-size:12.5px;display:flex;align-items:center;gap:6px">Per photo
+            <select class="search" id="reelDur" style="width:auto;flex:none"><option value="1000">1s</option><option value="1500">1.5s</option><option value="2000" selected>2s</option><option value="3000">3s</option><option value="4000">4s</option></select></label>
+          <label class="muted" style="font-size:12.5px;display:flex;align-items:center;gap:6px">Transition
+            <select class="search" id="reelTrans" style="width:auto;flex:none"><option value="crossfade" selected>Crossfade</option><option value="cut">Cut</option></select></label>
+          <button class="btn-sm btn-post" id="reelGo">Generate reel</button>
+          <button class="btn-sm" id="reelClear">Clear</button>
+          <span id="reelMsg" class="muted" style="font-size:12.5px"></span>
+        </div>
+      </div>
+      <div class="card" style="margin:0 0 18px">
+        <div class="section-label" style="margin:0 0 10px">Upload a video</div>
+        <input type="file" id="vidFile" accept="video/*" style="display:none">
+        <div class="toolbar"><input class="search" id="vidTags" placeholder="Tags (comma-separated) — optional"><button class="btn-sm" id="vidPick">Choose video…</button></div>
+        <div class="muted" style="font-size:12px;margin-top:6px">Stored privately, like your photos. MP4 / WebM / MOV, up to ~200&nbsp;MB.</div>
+        <div id="vidUpMsg" style="margin-top:8px"></div>
+      </div>
+      <div id="phVidBody"></div>
     </div>
   </section>
 
@@ -707,6 +748,7 @@
 
 <!-- ADVERT LIGHTBOX (blurred backdrop) -->
 <div class="lbx" id="lbx"><button class="lbx-x" id="lbxX" aria-label="Close">✕</button><div class="lbx-card" id="lbxCard"></div></div>
+<div class="lbx" id="vlbx"><button class="lbx-x" id="vlbxX" aria-label="Close">✕</button><div class="lbx-card" id="vlbxCard"></div></div>
 
 <script>
 /* ============ Supabase client — reused verbatim from group_ledger.html ============ */
@@ -717,7 +759,7 @@ function client(){ if(!sb && window.supabase) sb = window.supabase.createClient(
 
 const CAP = 12;                       // DESIGN + spec: 12 posts/day
 const TODAY = new Date().toISOString().slice(0,10);
-const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[], support:[], photos:[], templates:[], compositions:[], scheduled:[], themes:[], archived:[] };
+const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[], support:[], photos:[], templates:[], compositions:[], scheduled:[], themes:[], archived:[], videos:[] };
 
 const TABS = [
   ['Dashboard','<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></svg>'],
@@ -813,7 +855,7 @@ async function loadAll(){
   const c = client();
   if(!c){ document.getElementById('dashStats').innerHTML='<div class="loading">Couldn’t load the data library — check your connection and reload.</div>'; return; }
   try{
-    const [g,p,r,d,s,ph,tm,co,sp,th] = await Promise.all([
+    const [g,p,r,d,s,ph,tm,co,sp,th,vd] = await Promise.all([
       c.from('groups').select('*'),
       c.from('posting_log').select('*'),
       c.from('restrictions').select('*'),
@@ -824,11 +866,13 @@ async function loadAll(){
       c.from('compositions').select('*'),
       c.from('scheduled_posts').select('*'),
       c.from('themes').select('*'),
+      c.from('videos').select('*'),
     ]);
     const allG=g.data||[]; state.archived=allG.filter(x=>x.archived_at); state.groups=allG.filter(x=>!x.archived_at);
     state.posts = p.data||[]; state.restrictions = r.data||[]; state.dna = d.data||[]; state.support = s.data||[]; state.photos = ph.data||[];
     state.templates = (tm.data||[]).sort((a,b)=>a.sort-b.sort); state.compositions = co.data||[]; state.scheduled = sp.data||[]; state.themes = (th.data||[]).sort((a,b)=>a.sort-b.sort||String(a.category).localeCompare(String(b.category)));
-    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPostBrowser(); renderPostCockpit(); renderDNA(); renderSupport(); renderPhotos(); renderMontage(); renderAudit(); renderRun(); renderSchedules(); renderThemes();
+    state.videos = (vd.data||[]).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPostBrowser(); renderPostCockpit(); renderDNA(); renderSupport(); renderPhotos(); renderMontage(); renderAudit(); renderRun(); renderSchedules(); renderThemes(); renderVideos();
   }catch(e){
     document.getElementById('dashStats').innerHTML=
       '<div class="err" style="grid-column:1/-1"><b>Couldn’t reach the database.</b> Check your connection, then <button onclick="loadAll()">retry</button>.</div>';
@@ -1583,7 +1627,9 @@ function closeLbx(){ const l=document.getElementById('lbx'); if(l) l.classList.r
     const mode=b.dataset.phmode; document.querySelectorAll('[data-phmode]').forEach(x=>x.classList.toggle('on',x===b));
     document.getElementById('phPhotos').style.display=mode==='photos'?'':'none';
     document.getElementById('phAdverts').style.display=mode==='adverts'?'':'none';
+    const pv=document.getElementById('phVideos'); if(pv) pv.style.display=mode==='videos'?'':'none';
     if(mode==='adverts') renderAdverts();
+    if(mode==='videos'){ renderReelPicker(); renderVideos(); }
   }));
   const as=document.getElementById('phAdvSearch'); if(as) as.addEventListener('input',renderAdverts);
   const ab=document.getElementById('phAdvBody'); if(ab) ab.addEventListener('click',e=>{ const t=e.target.closest('[data-advid]'); if(!t) return; const co=state.compositions.find(x=>x.id===t.dataset.advid); if(co) openAdvertLightbox(co); });
@@ -1591,6 +1637,154 @@ function closeLbx(){ const l=document.getElementById('lbx'); if(l) l.classList.r
   if(lx) lx.addEventListener('click',closeLbx);
   if(lb) lb.addEventListener('click',e=>{ if(e.target===lb) closeLbx(); });
   document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeLbx(); });
+})();
+
+/* ---- Videos: reel studio (photos -> webm) + uploads, private storage ---- */
+let reelSel=[];  // ordered photo ids
+function renderReelPicker(){
+  const box=document.getElementById('reelPicker'); if(!box) return;
+  const cp=clearedPhotos();
+  if(!cp.length){ box.innerHTML='<div class="muted" style="grid-column:1/-1;font-size:13px">No cleared photos yet — clear some in the Photos tab first.</div>'; return; }
+  box.innerHTML=cp.map(p=>{ const ord=reelSel.indexOf(p.id);
+    return `<div class="reel-pt${ord>=0?' on':''}" data-reelpick="${esc(p.id)}"><img data-path="${esc(p.thumb_path||'')}" alt="">${ord>=0?`<span class="ord">${ord+1}</span>`:''}</div>`; }).join('');
+  signThumbs();
+}
+function renderVideos(){
+  const box=document.getElementById('phVidBody'); if(!box) return;
+  const rows=state.videos||[];
+  box.innerHTML=rows.length
+    ? `<div class="vid-grid">${rows.map(v=>`<div class="vid-tile" data-vid="${esc(v.id)}">
+        <div class="vid-thumb" data-vplay="${esc(v.id)}"><span class="kindtag">${v.kind==='upload'?'clip':'reel'}</span>${v.thumb_path?`<img data-spath="${esc(v.thumb_path)}" alt="">`:''}<span class="play">▶</span></div>
+        <div class="vid-b"><div class="nm" style="font-weight:600;font-size:13px">${esc(v.title||(v.kind==='upload'?'Uploaded clip':'Reel'))}</div>
+          <div class="muted" style="font-size:11px;margin:2px 0 8px">${supDate(v.created_at)}${v.duration_ms?' · '+(v.duration_ms/1000).toFixed(1)+'s':''}${v.bytes?' · '+Math.round(v.bytes/1048576*10)/10+' MB':''}</div>
+          <div class="dna-act"><button class="btn-sm" data-vdl="${esc(v.id)}">Download</button><button class="btn-sm" data-vdel="${esc(v.id)}">Delete</button></div></div></div>`).join('')}</div>`
+    : '<div class="next-note">No videos yet — build a reel above or upload a clip.</div>';
+  signSchedThumbs(box);
+}
+async function reelBuild(photoIds, perMs, transition){
+  const W=1080, H=1080;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const ctx=cv.getContext('2d');
+  const imgs=[]; for(const id of photoIds){ const p=photoById(id); if(!p) continue; try{ imgs.push(await loadOrig(p)); }catch(e){} }
+  if(!imgs.length) throw new Error('no images loaded');
+  if(!('captureStream' in cv) || typeof MediaRecorder==='undefined') throw new Error('this browser can’t record canvas video');
+  const fps=30, stream=cv.captureStream(fps);
+  const mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(m=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(m))||'video/webm';
+  const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:6000000});
+  const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+  const done=new Promise(res=>{ rec.onstop=()=>res(new Blob(chunks,{type:'video/webm'})); });
+  const cover=(img,a)=>{ ctx.globalAlpha=a; const r=cropRect(img.naturalWidth,img.naturalHeight,W,H,1,.5,.5); ctx.drawImage(img,r.sx,r.sy,r.sw,r.sh,0,0,W,H); ctx.globalAlpha=1; };
+  const fade=transition==='crossfade'?420:0, total=imgs.length*perMs;
+  rec.start(); const t0=performance.now();
+  await new Promise(res=>{ (function frame(){ const t=performance.now()-t0; if(t>=total){ res(); return; }
+    const idx=Math.min(imgs.length-1,Math.floor(t/perMs)), into=t-idx*perMs;
+    ctx.fillStyle='#0e1820'; ctx.fillRect(0,0,W,H); cover(imgs[idx],1);
+    if(fade&&idx<imgs.length-1&&into>perMs-fade) cover(imgs[idx+1],(into-(perMs-fade))/fade);
+    requestAnimationFrame(frame); })(); });
+  rec.stop(); const blob=await done;
+  // poster from first frame
+  const pc=document.createElement('canvas'); pc.width=480; pc.height=480; const r=cropRect(imgs[0].naturalWidth,imgs[0].naturalHeight,480,480,1,.5,.5);
+  pc.getContext('2d').drawImage(imgs[0],r.sx,r.sy,r.sw,r.sh,0,0,480,480);
+  const poster=await canvasBlob(pc,'image/jpeg',0.85);
+  return { blob, poster, width:W, height:H, duration_ms:total };
+}
+async function reelGenerate(){
+  const msg=document.getElementById('reelMsg');
+  if(reelSel.length<2){ if(msg) msg.textContent='Pick at least two photos.'; return; }
+  const perMs=+(document.getElementById('reelDur').value||2000), trans=document.getElementById('reelTrans').value||'crossfade';
+  const title=(document.getElementById('reelTitle').value||'').trim();
+  const go=document.getElementById('reelGo'); if(go) go.disabled=true;
+  if(msg) msg.textContent='Rendering reel… keep this tab in front.';
+  try{
+    const out=await reelBuild(reelSel.slice(),perMs,trans);
+    const c=client(); if(!c) throw new Error('no connection');
+    const id=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():'vid-'+Date.now();
+    const vpath=`video/reel/${id}.webm`, tpath=`video/thumb/${id}.jpg`;
+    const up=await c.storage.from('photos').upload(vpath,out.blob,{contentType:'video/webm',upsert:false}); if(up.error) throw up.error;
+    await c.storage.from('photos').upload(tpath,out.poster,{contentType:'image/jpeg',upsert:false});
+    const tags=mzInheritTags(reelSel.map(id2=>({photo_id:id2})));
+    const row={ id, title:title||null, kind:'reel', storage_path:vpath, thumb_path:tpath, source_photo_ids:reelSel.slice(), tags,
+      duration_ms:out.duration_ms, width:out.width, height:out.height, bytes:out.blob.size, mime:'video/webm', created_by:state.account };
+    const ins=await c.from('videos').insert(row).select().single(); if(ins.error) throw ins.error;
+    state.videos.unshift(ins.data);
+    dlBlob(`reel-${(title||'sturij').replace(/[^a-z0-9]+/gi,'-').toLowerCase()}.webm`, out.blob);
+    reelSel=[]; renderReelPicker(); renderVideos(); if(msg) msg.textContent=''; showToast('Reel saved + downloaded ✓');
+  }catch(err){ if(msg) msg.textContent=''; showToast('Reel failed: '+(err.message||'error')); }
+  finally{ if(go) go.disabled=false; }
+}
+function videoPoster(file){
+  return new Promise(res=>{ const v=document.createElement('video'); v.preload='metadata'; v.muted=true; v.playsInline=true;
+    const url=URL.createObjectURL(file);
+    v.onloadeddata=()=>{ try{ v.currentTime=Math.min(0.1,(v.duration||1)/2); }catch(e){ finish(); } };
+    const finish=()=>{ const w=v.videoWidth||480, h=v.videoHeight||480; const cw=480, ch=Math.round(480*h/w)||480;
+      const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+      try{ cv.getContext('2d').drawImage(v,0,0,cw,ch); }catch(e){}
+      cv.toBlob(b=>{ res({ poster:b, width:w, height:h, duration_ms:Math.round((v.duration||0)*1000) }); URL.revokeObjectURL(url); },'image/jpeg',0.85); };
+    v.onseeked=finish; v.onerror=()=>{ res({ poster:null, width:0, height:0, duration_ms:0 }); URL.revokeObjectURL(url); };
+    v.src=url; });
+}
+async function uploadVideo(file){
+  const msg=document.getElementById('vidUpMsg');
+  if(!/^video\//.test(file.type)){ if(msg) msg.innerHTML='<div class="err">That’s not a video file.</div>'; return; }
+  if(file.size>210*1024*1024){ if(msg) msg.innerHTML='<div class="err">Too big — keep it under ~200 MB.</div>'; return; }
+  if(msg) msg.innerHTML='<div class="muted" style="font-size:13px">Uploading…</div>';
+  try{
+    const c=client(); if(!c) throw new Error('no connection');
+    const meta=await videoPoster(file);
+    const id=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():'vid-'+Date.now();
+    const ext=(file.name.split('.').pop()||'mp4').toLowerCase().replace(/[^a-z0-9]/g,'')||'mp4';
+    const vpath=`video/upload/${id}.${ext}`, tpath=`video/thumb/${id}.jpg`;
+    const up=await c.storage.from('photos').upload(vpath,file,{contentType:file.type,upsert:false}); if(up.error) throw up.error;
+    if(meta.poster) await c.storage.from('photos').upload(tpath,meta.poster,{contentType:'image/jpeg',upsert:false});
+    const tags=(document.getElementById('vidTags').value||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const row={ id, title:file.name.replace(/\.[^.]+$/,''), kind:'upload', storage_path:vpath, thumb_path:meta.poster?tpath:null, tags,
+      duration_ms:meta.duration_ms||null, width:meta.width||null, height:meta.height||null, bytes:file.size, mime:file.type, created_by:state.account };
+    const ins=await c.from('videos').insert(row).select().single(); if(ins.error) throw ins.error;
+    state.videos.unshift(ins.data); if(msg) msg.innerHTML=''; renderVideos(); showToast('Video uploaded ✓');
+  }catch(err){ if(msg) msg.innerHTML='<div class="err"><b>Upload failed:</b> '+esc(err.message||'error')+'</div>'; }
+}
+async function videoSignedUrl(v){ const c=client(); if(!c) return null;
+  const { data }=await c.storage.from('photos').createSignedUrl(v.storage_path,3600); return data&&data.signedUrl||null; }
+async function openVideo(id){
+  const v=(state.videos||[]).find(x=>x.id===id); if(!v) return;
+  const card=document.getElementById('vlbxCard'); if(!card) return;
+  card.innerHTML='<div class="muted" style="padding:30px">Loading…</div>';
+  document.getElementById('vlbx').classList.add('on');
+  const url=await videoSignedUrl(v);
+  card.innerHTML=url?`<video class="vlbx-video" src="${esc(url)}" controls autoplay playsinline></video>`
+    :'<div class="err" style="margin:20px">Couldn’t load the video.</div>';
+}
+function closeVlbx(){ const l=document.getElementById('vlbx'); if(l){ l.classList.remove('on'); const c=document.getElementById('vlbxCard'); if(c) c.innerHTML=''; } }
+async function downloadVideo(id){
+  const v=(state.videos||[]).find(x=>x.id===id); if(!v) return; showToast('Preparing download…');
+  const url=await videoSignedUrl(v); if(!url){ showToast('Download failed'); return; }
+  try{ const r=await fetch(url); const b=await r.blob(); dlBlob(`${(v.title||'video').replace(/[^a-z0-9]+/gi,'-').toLowerCase()}.${v.kind==='upload'?(v.mime||'').split('/')[1]||'mp4':'webm'}`, b); }
+  catch(e){ window.open(url,'_blank'); }
+}
+async function deleteVideo(id){
+  const v=(state.videos||[]).find(x=>x.id===id); if(!v) return;
+  if(!confirm(`Delete “${v.title||'this video'}”?`)) return;
+  const c=client(); if(!c) return;
+  try{ const { error }=await c.from('videos').delete().eq('id',id); if(error) throw error;
+    const paths=[v.storage_path]; if(v.thumb_path) paths.push(v.thumb_path); c.storage.from('photos').remove(paths);
+    state.videos=state.videos.filter(x=>x.id!==id); renderVideos(); showToast('Video deleted');
+  }catch(err){ showToast('Delete failed'); }
+}
+(function(){
+  const pick=document.getElementById('reelPicker');
+  if(pick) pick.addEventListener('click',e=>{ const t=e.target.closest('[data-reelpick]'); if(!t) return; const id=t.dataset.reelpick;
+    const i=reelSel.indexOf(id); if(i>=0) reelSel.splice(i,1); else reelSel.push(id); renderReelPicker(); });
+  const go=document.getElementById('reelGo'); if(go) go.addEventListener('click',reelGenerate);
+  const clr=document.getElementById('reelClear'); if(clr) clr.addEventListener('click',()=>{ reelSel=[]; renderReelPicker(); const m=document.getElementById('reelMsg'); if(m) m.textContent=''; });
+  const vp=document.getElementById('vidPick'), vf=document.getElementById('vidFile');
+  if(vp&&vf){ vp.addEventListener('click',()=>vf.click()); vf.addEventListener('change',()=>{ if(vf.files&&vf.files[0]) uploadVideo(vf.files[0]); vf.value=''; }); }
+  const vb=document.getElementById('phVidBody');
+  if(vb) vb.addEventListener('click',e=>{ const pl=e.target.closest('[data-vplay]'); if(pl){ openVideo(pl.dataset.vplay); return; }
+    const dl=e.target.closest('[data-vdl]'); if(dl){ downloadVideo(dl.dataset.vdl); return; }
+    const dd=e.target.closest('[data-vdel]'); if(dd){ deleteVideo(dd.dataset.vdel); return; } });
+  const vx=document.getElementById('vlbxX'), vlb=document.getElementById('vlbx');
+  if(vx) vx.addEventListener('click',closeVlbx);
+  if(vlb) vlb.addEventListener('click',e=>{ if(e.target===vlb) closeVlbx(); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeVlbx(); });
 })();
 
 /* ---- Montage builder (compose cleared photos -> adverts) ---- */
