@@ -69,11 +69,11 @@ From `SPRINT_SPEC_2b` §3d (real live-UAT findings).
 ### 3b — Montage Builder
 | # | Task | Status |
 |---|---|---|
-| I10 | **`templates` table (data, not hardcoded):** 3×3 sq + 3×3 portrait (primary), 2×2 landscape, single | ❌ |
-| I11 | Canvas compose: per-cell **mask + pan/zoom/crop** (never distort), high-res PNG export | ❌ (v0.1 sketch exists) |
-| I12 | **Lock cell + tile-swap remix** (headline: remix swaps only unlocked cells) | ❌ |
-| I13 | `compositions` table (non-destructive); saved adverts **inherit source tags**, searchable | ❌ |
-| I14 | Feed the Run — composition selectable as post image, logs `image_ref` | ❌ |
+| I10 | **`templates` table (data, not hardcoded):** 3×3 sq + 3×3 portrait (primary), 2×2 landscape, single | ✅ (PR #13) — table seeded with the 4 layouts |
+| I11 | Canvas compose: per-cell **mask + pan/zoom/crop** (never distort), high-res PNG export | ✅ (PR #13) — canvas editor, drag-pan + zoom-crop (cover, no distort), full-res PNG export |
+| I12 | **Lock cell + tile-swap remix** (headline: remix swaps only unlocked cells) | ✅ (PR #13) — per-cell lock; remix reassigns only unlocked cells |
+| I13 | `compositions` table (non-destructive); saved adverts **inherit source tags**, searchable | ✅ (PR #13) — recipe saved (non-destructive), inherits source tags, gallery search, edit/download/delete |
+| I14 | Feed the Run — composition selectable as post image, logs `image_ref` | ❌ — waits on the Run (R-track) |
 
 ### 3c — AI image (Nano Banana, governed)
 | # | Task | Status |
