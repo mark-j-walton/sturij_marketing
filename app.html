@@ -248,6 +248,11 @@
   .gpill.neutral{background:rgba(35,31,27,.06);color:var(--ink-muted)}
   :root[data-theme="dark"] .gpill.neutral{background:rgba(240,237,230,.06)}
   .gacc-b{display:none;padding:4px 16px 14px} .gacc.open .gacc-b{display:block}
+  .rp-nm{font-family:'DM Serif Display',serif;font-size:17px;color:var(--ink-dark);line-height:1.2}
+  .rp-job{border:1px solid var(--line-soft);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--card)}
+  .rp-h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .rp-copy{width:100%;min-height:118px;background:var(--card);color:var(--ink-body);border:1px solid var(--line-soft);border-radius:9px;padding:11px;font-size:14px;line-height:1.5;resize:vertical;font-family:inherit}
+  .rp-copy:focus{outline:none;border-color:var(--bronze)}
   /* advert tiles + lightbox (shared: Photos>Adverts, dashboard showcase) */
   .adv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
   .adv-tile{border-radius:12px;overflow:hidden;cursor:pointer;background:var(--card);border:1px solid var(--line-soft);box-shadow:var(--shadow-card);transition:transform .12s,box-shadow .12s}
@@ -468,6 +473,10 @@
       <button class="chip" data-pv="week">This week</button>
     </div>
     <div id="planBody"></div>
+
+    <div class="section-label" style="margin-top:30px">Ready to post — your queue</div>
+    <p class="sub" style="margin-top:-2px">Everything you've added, grouped by day. Draft the copy, open the group alongside a <b>floating paste window</b>, paste it in by hand, then mark <b>Posted ✓</b> to close the job. The app never posts for you.</p>
+    <div id="planReady"></div>
   </section>
 
   <!-- RUN (Today's Run) -->
@@ -1007,6 +1016,7 @@ function renderPlan(){
     }
     document.getElementById('planBody').innerHTML=html+'</div>';
   }
+  renderReadyToPost();
 }
 document.querySelectorAll('[data-pv]').forEach(b=>b.addEventListener('click',()=>{
   state.planView=b.dataset.pv;
@@ -2094,6 +2104,128 @@ function renderCreated(){
     ||'<tr><td colspan="5" class="muted">No posts in this period.</td></tr>'}</tbody></table></div>`;
 }
 function renderSchedules(){ renderSched(); renderCreated(); }
+
+/* ---- Plan · ready-to-post queue: date accordions + floating paste window + Posted ✓ ---- */
+function planDateLabel(d){
+  if(!d||d==='No date') return 'No date set';
+  if(d===TODAY) return 'Today · '+supDate(d);
+  const dt=new Date(d); return DOW[dt.getDay()]+' · '+supDate(d);
+}
+function rpJobCard(s){
+  const g=state.groups.find(x=>x.id===s.group_id)||{};
+  const rule=[(g.posting_days&&g.posting_days.length)?('Days — '+g.posting_days.join(', ')):'', g.official_rules, g.posting_note].filter(Boolean).join(' · ');
+  const avoid=(g.avoid&&g.avoid.length)?g.avoid.join(', '):'';
+  const content=s.content||'';
+  const eligible = lockedToday(g) && cooldownLeft(g)<=0;
+  return `<div class="rp-job" data-job="${esc(s.id)}">
+    <div class="rp-h"><span class="rp-nm">${esc(s.group_name||g.name||'Group')}</span>
+      ${g.tier?`<span class="tchip ${g.tier}"><span class="dot ${g.tier}"></span>${g.tier}</span>`:''}
+      <span class="muted" style="font-size:12px;margin-left:auto">${esc(s.area||g.area||'')}</span></div>
+    ${rule?`<div class="run-inst" style="margin-bottom:10px"><div><b>Rules:</b> ${esc(rule)}</div>${avoid?`<div style="color:var(--danger)"><b>Avoid:</b> ${esc(avoid)}</div>`:''}</div>`:''}
+    <textarea class="rp-copy" data-rpcopy placeholder="Write the post, or ✨ Draft with AI.">${esc(content)}</textarea>
+    <div class="dna-act" style="margin-top:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn-sm ${content?'':'btn-post'}" data-rp="draft">${content?'↻ Remix':'✨ Draft with AI'}</button>
+      <button class="btn-sm" data-rp="copy">Copy</button>
+      ${g.url?`<a class="btn-sm" href="${esc(g.url)}" target="_blank" rel="noopener" style="text-decoration:none">Open group ↗</a>`:''}
+      <button class="btn-sm" data-rp="pip">⇈ Paste window</button>
+      <button class="btn-sm btn-pri" data-rp="posted" style="margin-left:auto"${eligible?'':' disabled title="Not eligible today"'}>Posted ✓</button>
+      <button class="btn-sm" data-rp="remove">Remove</button>
+    </div>
+    ${eligible?'':`<div class="muted" style="font-size:12px;margin-top:8px">⚠ Planning only — ${cooldownLeft(g)>0?('in cooldown, '+cooldownLeft(g)+' day'+(cooldownLeft(g)===1?'':'s')+' left'):'not scheduled to post today'}. Prep it now; Posted ✓ unlocks when it's eligible.</div>`}
+  </div>`;
+}
+function renderReadyToPost(){
+  const box=document.getElementById('planReady'); if(!box) return;
+  const rows=schedPending();
+  if(!rows.length){ box.innerHTML='<div class="next-note">Nothing queued yet — use <b>Add to Run</b> on a suggestion above to build your queue.</div>'; return; }
+  const byDate={}; rows.forEach(s=>{ const k=s.planned_on||'No date'; (byDate[k]=byDate[k]||[]).push(s); });
+  const keys=Object.keys(byDate).sort();
+  box.innerHTML=keys.map((k,idx)=>{
+    const list=byDate[k], drafted=list.filter(s=>s.content).length;
+    return `<div class="gacc${idx===0?' open':''}"><div class="gacc-h">
+      <svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      <span class="gacc-name">${esc(planDateLabel(k))}</span>
+      <span class="gacc-stat"><span class="gpill neutral">${list.length} job${list.length===1?'':'s'}</span>${drafted?`<span class="gpill green"><span class="dot green"></span>${drafted} drafted</span>`:''}</span>
+    </div><div class="gacc-b">${list.map(rpJobCard).join('')}</div></div>`;
+  }).join('');
+}
+async function rpSaveContent(s,content){
+  const c=client(); if(!c) return; try{ await c.from('scheduled_posts').update({content}).eq('id',s.id); s.content=content; }catch(e){}
+}
+async function rpDraft(s,card){
+  const g=state.groups.find(x=>x.id===s.group_id); if(!g){ showToast('Group not found'); return; }
+  const ta=card.querySelector('[data-rpcopy]'), btn=card.querySelector('[data-rp="draft"]');
+  if(btn){ btn.disabled=true; btn.textContent='Drafting…'; }
+  const fresh=(await runFetchDrafts(g,1,s.content?[s.content]:[]))||fallbackDrafts(g,1);
+  const copy=(fresh&&fresh[0])||''; if(ta) ta.value=copy;
+  await rpSaveContent(s,copy); renderReadyToPost();
+}
+async function rpPosted(s){
+  const g=state.groups.find(x=>x.id===s.group_id); if(!g){ showToast('Group not found'); return false; }
+  if(CAP-appPostsToday()<=0){ showToast('12/12 cap reached — protected.'); return false; }
+  if(cooldownLeft(g)>0){ showToast(`In cooldown — ${cooldownLeft(g)} days left.`); return false; }
+  if(!lockedToday(g)){ showToast('Not scheduled to post today.'); return false; }
+  const c=client(); if(!c) return false;
+  const content=s.content||'';
+  const row={ group_id:g.id, group_name:g.name, posted_on:TODAY, variation:'A', content_hash:phash(content), account:state.account, source:'app' };
+  try{ const { error }=await c.from('posting_log').insert(row); if(error) throw error;
+    state.posts.push(row);
+    try{ await c.from('scheduled_posts').update({status:'posted'}).eq('id',s.id); s.status='posted'; }catch(e){}
+    renderCapMeter(); renderDash(); renderPlan(); renderPostBrowser(); renderRun(); renderSchedules();
+    showToast(`Logged ✓ to ${g.name}`); return true;
+  }catch(err){ showToast('Couldn’t log it'); return false; }
+}
+async function openPasteWindow(s){
+  const g=state.groups.find(x=>x.id===s.group_id)||{};
+  const title=s.group_name||g.name||'Post', copy=s.content||'', url=g.url||'';
+  const build=(w)=>{
+    try{ w.document.title='Paste — '+title; }catch(e){}
+    w.document.body.innerHTML=`<style>
+      *{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+      body{margin:0;padding:14px;background:#1a1714;color:#f0ede6}
+      h1{font-size:15px;margin:0 0 3px;line-height:1.2} .meta{font-size:12px;color:#8b8578;margin-bottom:10px}
+      textarea{width:100%;height:230px;background:#221f1b;color:#f0ede6;border:1px solid #3a352e;border-radius:8px;padding:10px;font-size:14px;resize:vertical}
+      .row{display:flex;gap:8px;margin-top:10px} .row>*{flex:1;text-align:center;text-decoration:none;padding:11px;border-radius:8px;border:1px solid #3a352e;background:#2a2621;color:#f0ede6;font-size:13px;cursor:pointer}
+      .pri{background:#3d5a80;border-color:#3d5a80} .ok{background:#4a7c59;border-color:#4a7c59}
+      #msg{font-size:12px;color:#7dc99a;margin-top:9px;min-height:16px}
+    </style>
+    <h1>${esc(title)}</h1><div class="meta">Copy → paste into Facebook → mark Posted.</div>
+    <textarea id="pw-copy">${esc(copy)}</textarea>
+    <div class="row"><button id="pw-copy-btn" class="pri">Copy text</button>${url?`<a href="${esc(url)}" target="_blank" rel="noopener">Open group ↗</a>`:''}</div>
+    <div class="row"><button id="pw-posted" class="ok">Posted ✓ — done</button></div>
+    <div id="msg"></div>`;
+    const setMsg=t=>{ const m=w.document.getElementById('msg'); if(m) m.textContent=t; };
+    w.document.getElementById('pw-copy-btn').addEventListener('click',()=>{ const t=w.document.getElementById('pw-copy').value;
+      const cb=(w.navigator&&w.navigator.clipboard)||navigator.clipboard;
+      cb.writeText(t).then(()=>setMsg('Copied ✓ — paste it into Facebook.')).catch(()=>{ w.document.getElementById('pw-copy').select(); setMsg('Select-all + Ctrl/Cmd-C to copy.'); }); });
+    w.document.getElementById('pw-posted').addEventListener('click',async()=>{
+      s.content=w.document.getElementById('pw-copy').value; await rpSaveContent(s,s.content);
+      const ok=await rpPosted(s); setMsg(ok?'Logged ✓ — you can close this.':'Blocked — check the queue.'); if(ok){ try{ w.close(); }catch(e){} } });
+  };
+  if(window.documentPictureInPicture&&window.documentPictureInPicture.requestWindow){
+    try{ const w=await window.documentPictureInPicture.requestWindow({width:400,height:540}); build(w); return; }catch(e){}
+  }
+  const w=window.open('','_blank','popup,width=400,height=580');
+  if(!w){ showToast('Allow pop-ups to use the paste window'); return; }
+  build(w);
+}
+(function(){
+  const box=document.getElementById('planReady'); if(!box) return;
+  box.addEventListener('click',async e=>{
+    const gh=e.target.closest('.gacc-h'); if(gh){ gh.parentElement.classList.toggle('open'); return; }
+    const b=e.target.closest('[data-rp]'); if(!b) return;
+    const card=b.closest('.rp-job'); if(!card) return; const s=state.scheduled.find(x=>x.id===card.dataset.job); if(!s) return;
+    const ta=card.querySelector('[data-rpcopy]'), act=b.dataset.rp;
+    if(ta&&ta.value!==(s.content||'')&&act!=='draft'&&act!=='remove') await rpSaveContent(s,ta.value);
+    if(act==='draft'){ await rpDraft(s,card); return; }
+    if(act==='copy'){ navigator.clipboard.writeText(ta?ta.value:'').then(()=>showToast('Copied ✓')).catch(()=>{}); return; }
+    if(act==='pip'){ openPasteWindow(s); return; }
+    if(act==='posted'){ await rpPosted(s); return; }
+    if(act==='remove'){ await removeSchedule(s.id); return; }
+  });
+  box.addEventListener('blur',async e=>{ const ta=e.target.closest('[data-rpcopy]'); if(!ta) return; const card=ta.closest('.rp-job'); if(!card) return;
+    const s=state.scheduled.find(x=>x.id===card.dataset.job); if(s&&ta.value!==(s.content||'')) await rpSaveContent(s,ta.value); },true);
+})();
 function openPlanned(id){
   const s=state.scheduled.find(x=>x.id===id); if(!s) return;
   document.getElementById('pvName').textContent=s.group_name||'Planned advert';
