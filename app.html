@@ -1665,22 +1665,41 @@ async function aiEnhance(p, btn){
     const src=await imgToScaledBase64(img,1536);
     const { data, error }=await c.functions.invoke('enhance-image',{ body:{ image_base64:src.b64, mime_type:src.mime } });
     if(error||!data||data.error||!data.image_base64) throw new Error((data&&data.error)||(error&&error.message)||'enhance failed');
-    enhState={ source:p, beforeUrl:src.dataUrl, dataUrl:`data:${data.mime_type||'image/png'};base64,${data.image_base64}`, mime:data.mime_type||'image/png' };
+    enhState={ kind:'photo', source:p, beforeUrl:src.dataUrl, dataUrl:`data:${data.mime_type||'image/png'};base64,${data.image_base64}`, mime:data.mime_type||'image/png' };
     showEnhance();
   }catch(err){ showToast('Enhance failed: '+(err.message||'error')); }
   finally{ if(btn){ btn.disabled=false; btn.textContent='✨ AI enhance'; } }
 }
+async function advertBalance(co, btn){
+  const c=client(); if(!c){ showToast('No database connection'); return; }
+  const t=state.templates.find(x=>x.id===co.template_id); if(!t){ showToast('Template missing'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='Balancing…'; }
+  try{
+    const cv=await mzRenderRecipe(t, co.cells||[], 1536);
+    const beforeUrl=cv.toDataURL('image/jpeg',0.92);
+    const { data, error }=await c.functions.invoke('enhance-image',{ body:{ image_base64:beforeUrl.split(',')[1], mime_type:'image/jpeg', mode:'balance' } });
+    if(error||!data||data.error||!data.image_base64) throw new Error((data&&data.error)||(error&&error.message)||'balance failed');
+    enhState={ kind:'advert', source:co, template:t, beforeUrl, dataUrl:`data:${data.mime_type||'image/png'};base64,${data.image_base64}`, mime:data.mime_type||'image/png' };
+    showEnhance();
+  }catch(err){ showToast('Balance failed: '+(err.message||'error')); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='✨ Balance'; } }
+}
 function showEnhance(){
   const card=document.getElementById('enhCard'); if(!card||!enhState) return;
-  const p=enhState.source;
+  const advert=enhState.kind==='advert';
+  const title=advert?'Balance advert — before / after':'AI enhance — before / after';
+  const note=advert
+    ? 'Harmonises the tiles into one cohesive advert — <b>colour &amp; light only</b>, content unchanged. Save <b>replaces this advert’s image in place</b>. No duplicate.'
+    : 'Colour &amp; light only — the content is unchanged, so this <b>replaces the original in place and keeps its cleared status</b>. No duplicate is created.';
+  const saveLabel=advert?'Save — replace advert':'Save — replace original';
   card.innerHTML=`<div style="padding:4px">
-    <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--ink-dark);margin-bottom:4px">AI enhance — before / after</div>
-    <div class="muted" style="font-size:12.5px;margin-bottom:12px">Colour &amp; light only — the content is unchanged, so this <b>replaces the original in place and keeps its cleared status</b>. No duplicate is created.</div>
+    <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--ink-dark);margin-bottom:4px">${title}</div>
+    <div class="muted" style="font-size:12.5px;margin-bottom:12px">${note}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div><div class="muted" style="font-size:11px;margin-bottom:5px">BEFORE</div><img src="${enhState.beforeUrl||''}" alt="" style="width:100%;border-radius:9px;display:block"></div>
       <div><div class="muted" style="font-size:11px;margin-bottom:5px">AFTER</div><img src="${enhState.dataUrl}" alt="" style="width:100%;border-radius:9px;display:block"></div>
     </div>
-    <div class="dna-act" style="margin-top:14px;justify-content:flex-end"><button class="btn-sm" data-enh="discard">Discard</button><button class="btn-sm btn-post" data-enh="save">Save — replace original</button></div>
+    <div class="dna-act" style="margin-top:14px;justify-content:flex-end"><button class="btn-sm" data-enh="discard">Discard</button><button class="btn-sm btn-post" data-enh="save">${saveLabel}</button></div>
     <div id="enhMsg" style="margin-top:8px"></div>
   </div>`;
   document.getElementById('enh').classList.add('on');
@@ -1695,10 +1714,21 @@ async function saveEnhanced(){
     const tcv=document.createElement('canvas'); const tw=480, th=bmp?Math.round(480*bmp.height/bmp.width):480; tcv.width=tw; tcv.height=th;
     if(bmp) tcv.getContext('2d').drawImage(bmp,0,0,tw,th);
     const thumb=await canvasBlob(tcv,'image/jpeg',0.85);
-    const p=enhState.source, oldPath=p.storage_path, oldThumb=p.thumb_path;
-    // replace in place: write to fresh paths (avoids stale signed-URL caching), update the SAME row, keep status
     const nid=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.floor(Math.random()*1e9);
     const ext=(enhState.mime.split('/')[1]||'png').replace(/[^a-z0-9]/g,'')||'png';
+    if(enhState.kind==='advert'){
+      const co=enhState.source, oldEnh=co.enhanced_path, oldThumb=co.thumb_path;
+      const apath=`comp/enh/${nid}.${ext}`, atpath=`comp/thumb/${nid}.jpg`;
+      let aup=await c.storage.from('photos').upload(apath,blob,{contentType:enhState.mime,upsert:false}); if(aup.error) throw aup.error;
+      aup=await c.storage.from('photos').upload(atpath,thumb,{contentType:'image/jpeg',upsert:false}); if(aup.error) throw aup.error;
+      const aupd=await c.from('compositions').update({ enhanced_path:apath, thumb_path:atpath }).eq('id',co.id).select().single(); if(aupd.error) throw aupd.error;
+      Object.assign(co, aupd.data);
+      const arm=[oldEnh,oldThumb].filter(x=>x && x!==apath && x!==atpath); if(arm.length) c.storage.from('photos').remove(arm);
+      closeEnh(); renderCompositions(); if(typeof renderAdverts==='function') renderAdverts(); if(typeof renderDash==='function') renderDash(); showToast('Advert balanced in place ✓');
+      return;
+    }
+    const p=enhState.source, oldPath=p.storage_path, oldThumb=p.thumb_path;
+    // replace in place: write to fresh paths (avoids stale signed-URL caching), update the SAME row, keep status
     const path=`orig/${nid}.${ext}`, tpath=`thumb/${nid}.jpg`;
     let up=await c.storage.from('photos').upload(path,blob,{contentType:enhState.mime,upsert:false}); if(up.error) throw up.error;
     up=await c.storage.from('photos').upload(tpath,thumb,{contentType:'image/jpeg',upsert:false}); if(up.error) throw up.error;
@@ -2100,10 +2130,10 @@ function compCard(co){
   return `<div class="card mz-g" data-cid="${esc(co.id)}" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px">
     <div class="ph-thumb" style="width:120px;height:120px"><img data-cpath="${esc(co.thumb_path||'')}" alt=""></div>
     <div style="flex:1;min-width:220px">
-      <div style="font-family:'DM Serif Display',serif;font-size:17px;color:var(--ink-dark)">${esc(co.title||'Untitled advert')}</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:17px;color:var(--ink-dark)">${esc(co.title||'Untitled advert')}${co.enhanced_path?' <span class="gdchip" style="font-size:10px;vertical-align:middle">balanced</span>':''}</div>
       <div class="muted" style="font-size:12px;margin:4px 0 8px">${t?esc(t.name):esc(co.template_id||'')} · ${supDate(co.created_at)}${co.author?' · '+esc(co.author):''}</div>
       <div style="margin-bottom:10px">${tags||'<span class="muted">no tags</span>'}</div>
-      <div class="dna-act"><button class="btn-sm btn-post" data-cact="schedule">Schedule</button><button class="btn-sm" data-cact="edit">Edit</button><button class="btn-sm" data-cact="download">⤓ PNG</button><button class="btn-sm" data-cact="delete">Delete</button></div>
+      <div class="dna-act"><button class="btn-sm btn-post" data-cact="schedule">Schedule</button><button class="btn-sm" data-cact="balance">✨ Balance</button><button class="btn-sm" data-cact="edit">Edit</button><button class="btn-sm" data-cact="download">⤓ PNG</button><button class="btn-sm" data-cact="delete">Delete</button></div>
     </div>
   </div>`;
 }
@@ -2122,18 +2152,23 @@ async function compAction(e){
   const btn=e.target.closest('[data-cact]'); const cardEl=e.target.closest('[data-cid]'); if(!btn||!cardEl) return;
   const co=state.compositions.find(x=>x.id===cardEl.dataset.cid); if(!co) return; const act=btn.dataset.cact;
   if(act==='schedule'){ openScheduleComp(co); return; }
+  if(act==='balance'){ advertBalance(co, btn); return; }
   if(act==='edit'){ const t=state.templates.find(x=>x.id===co.template_id); if(!t) return;
     mz.template=t; mz.cells=(co.cells||[]).map(c2=>c2?Object.assign({},c2):null); while(mz.cells.length<cellCount(t)) mz.cells.push(null);
     mz.sel=-1; mzView='build'; document.querySelectorAll('[data-mzv]').forEach(x=>x.classList.toggle('on',x.dataset.mzv==='build'));
     document.getElementById('mzBuild').style.display=''; document.getElementById('mzSaved').style.display='none';
     document.querySelectorAll('#mzTemplates .chip').forEach(x=>x.classList.toggle('on',x.dataset.tpl===t.id));
     renderEditor(); showToast('Loaded into builder'); return; }
-  if(act==='download'){ const t=state.templates.find(x=>x.id===co.template_id); if(!t) return; showToast('Rendering…');
-    try{ const cv=await mzRenderRecipe(t,co.cells||[],null); const blob=await canvasBlob(cv,'image/png'); dlBlob(`montage-${(co.title||'advert').replace(/[^a-z0-9]+/gi,'-').toLowerCase()}.png`, blob); }
-    catch(err){ showToast('Render failed'); } return; }
+  if(act==='download'){ const nm=`montage-${(co.title||'advert').replace(/[^a-z0-9]+/gi,'-').toLowerCase()}`; showToast('Preparing…');
+    try{
+      if(co.enhanced_path){ const cc=client(); const { data }=await cc.storage.from('photos').createSignedUrl(co.enhanced_path,3600);
+        if(data&&data.signedUrl){ const b=await (await fetch(data.signedUrl)).blob(); dlBlob(`${nm}.${(co.enhanced_path.split('.').pop()||'png')}`, b); return; } }
+      const t=state.templates.find(x=>x.id===co.template_id); if(!t) return;
+      const cv=await mzRenderRecipe(t,co.cells||[],null); const blob=await canvasBlob(cv,'image/png'); dlBlob(`${nm}.png`, blob);
+    }catch(err){ showToast('Render failed'); } return; }
   if(act==='delete'){ const c=client(); if(!c) return;
     try{ const {error}=await c.from('compositions').delete().eq('id',co.id); if(error) throw error;
-      if(co.thumb_path) c.storage.from('photos').remove([co.thumb_path]);
+      const rm=[co.thumb_path,co.enhanced_path].filter(Boolean); if(rm.length) c.storage.from('photos').remove(rm);
       state.compositions=state.compositions.filter(x=>x.id!==co.id); renderCompositions(); showToast('Advert deleted'); }
     catch(err){ showToast('Delete failed'); } return; }
 }
