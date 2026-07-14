@@ -1531,7 +1531,7 @@ function photoCard(p){
         ${cleared
           ? `<div class="muted" style="font-size:12px">Cleared by ${esc(p.cleared_by||'—')}${p.cleared_at?' · '+supDate(p.cleared_at):''} · <a href="#" data-act="unclear" style="color:var(--info)">revoke</a></div>`
           : `<button class="btn-sm" data-act="clearform">Review &amp; clear for public…</button>`}
-        <div class="dna-act" style="margin-top:8px"><button class="btn-sm" data-act="enhance">✨ AI enhance</button><span class="muted" style="font-size:11.5px">colour &amp; light only · saves as a new photo to re-clear</span></div>
+        <div class="dna-act" style="margin-top:8px"><button class="btn-sm" data-act="enhance">✨ AI enhance</button><span class="muted" style="font-size:11.5px">colour &amp; light only · replaces the original in place</span></div>
         <div class="ph-clear" style="display:none;margin-top:12px">
           <div class="muted" style="font-size:12.5px;margin-bottom:8px">Confirm each point before this photo can be used anywhere. <b>Only a person clears a photo — never the app.</b></div>
           ${CLEAR_CHECKS.map((t,i)=>`<label class="ph-chk"><input type="checkbox" data-chk="${i}"> ${esc(t)}</label>`).join('')}
@@ -1655,7 +1655,7 @@ async function imgToScaledBase64(img, maxEdge){
   const iw=img.naturalWidth, ih=img.naturalHeight, s=Math.min(1, maxEdge/Math.max(iw,ih));
   const w=Math.max(1,Math.round(iw*s)), h=Math.max(1,Math.round(ih*s));
   const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
-  const durl=cv.toDataURL('image/jpeg',0.92); return { b64:durl.split(',')[1], mime:'image/jpeg', w, h };
+  const durl=cv.toDataURL('image/jpeg',0.92); return { b64:durl.split(',')[1], mime:'image/jpeg', w, h, dataUrl:durl };
 }
 async function aiEnhance(p, btn){
   const c=client(); if(!c){ showToast('No database connection'); return; }
@@ -1665,7 +1665,7 @@ async function aiEnhance(p, btn){
     const src=await imgToScaledBase64(img,1536);
     const { data, error }=await c.functions.invoke('enhance-image',{ body:{ image_base64:src.b64, mime_type:src.mime } });
     if(error||!data||data.error||!data.image_base64) throw new Error((data&&data.error)||(error&&error.message)||'enhance failed');
-    enhState={ source:p, dataUrl:`data:${data.mime_type||'image/png'};base64,${data.image_base64}`, mime:data.mime_type||'image/png' };
+    enhState={ source:p, beforeUrl:src.dataUrl, dataUrl:`data:${data.mime_type||'image/png'};base64,${data.image_base64}`, mime:data.mime_type||'image/png' };
     showEnhance();
   }catch(err){ showToast('Enhance failed: '+(err.message||'error')); }
   finally{ if(btn){ btn.disabled=false; btn.textContent='✨ AI enhance'; } }
@@ -1675,15 +1675,14 @@ function showEnhance(){
   const p=enhState.source;
   card.innerHTML=`<div style="padding:4px">
     <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--ink-dark);margin-bottom:4px">AI enhance — before / after</div>
-    <div class="muted" style="font-size:12.5px;margin-bottom:12px">Colour &amp; light only — content is unchanged. Save creates a <b>new, uncleared</b> photo you must review and clear by hand.</div>
+    <div class="muted" style="font-size:12.5px;margin-bottom:12px">Colour &amp; light only — the content is unchanged, so this <b>replaces the original in place and keeps its cleared status</b>. No duplicate is created.</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div><div class="muted" style="font-size:11px;margin-bottom:5px">BEFORE</div><img id="enhBefore" data-path="${esc(p.thumb_path||'')}" alt="" style="width:100%;border-radius:9px;display:block"></div>
+      <div><div class="muted" style="font-size:11px;margin-bottom:5px">BEFORE</div><img src="${enhState.beforeUrl||''}" alt="" style="width:100%;border-radius:9px;display:block"></div>
       <div><div class="muted" style="font-size:11px;margin-bottom:5px">AFTER</div><img src="${enhState.dataUrl}" alt="" style="width:100%;border-radius:9px;display:block"></div>
     </div>
-    <div class="dna-act" style="margin-top:14px;justify-content:flex-end"><button class="btn-sm" data-enh="discard">Discard</button><button class="btn-sm btn-post" data-enh="save">Save as new photo</button></div>
+    <div class="dna-act" style="margin-top:14px;justify-content:flex-end"><button class="btn-sm" data-enh="discard">Discard</button><button class="btn-sm btn-post" data-enh="save">Save — replace original</button></div>
     <div id="enhMsg" style="margin-top:8px"></div>
   </div>`;
-  signThumbs(card);
   document.getElementById('enh').classList.add('on');
 }
 function closeEnh(){ const l=document.getElementById('enh'); if(l) l.classList.remove('on'); enhState=null; }
@@ -1696,18 +1695,20 @@ async function saveEnhanced(){
     const tcv=document.createElement('canvas'); const tw=480, th=bmp?Math.round(480*bmp.height/bmp.width):480; tcv.width=tw; tcv.height=th;
     if(bmp) tcv.getContext('2d').drawImage(bmp,0,0,tw,th);
     const thumb=await canvasBlob(tcv,'image/jpeg',0.85);
-    const id=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.floor(Math.random()*1e9);
+    const p=enhState.source, oldPath=p.storage_path, oldThumb=p.thumb_path;
+    // replace in place: write to fresh paths (avoids stale signed-URL caching), update the SAME row, keep status
+    const nid=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.floor(Math.random()*1e9);
     const ext=(enhState.mime.split('/')[1]||'png').replace(/[^a-z0-9]/g,'')||'png';
-    const path=`orig/${id}.${ext}`, tpath=`thumb/${id}.jpg`;
+    const path=`orig/${nid}.${ext}`, tpath=`thumb/${nid}.jpg`;
     let up=await c.storage.from('photos').upload(path,blob,{contentType:enhState.mime,upsert:false}); if(up.error) throw up.error;
     up=await c.storage.from('photos').upload(tpath,thumb,{contentType:'image/jpeg',upsert:false}); if(up.error) throw up.error;
-    const src=enhState.source, tags=[...new Set([...(src.tags||[]),'enhanced'])];
-    const ins=await c.from('photos').insert({ uploader:state.account, storage_path:path, thumb_path:tpath,
-      width:bmp?bmp.width:null, height:bmp?bmp.height:null, bytes:blob.size, mime:enhState.mime, tags,
-      photo_state:'retouched', cleared_for_public:false,
-      description:`AI-enhanced (colour/light) from “${(src.description||src.tags&&src.tags[0]||'photo')}”. Review and clear before use.` }).select().single();
-    if(ins.error) throw ins.error;
-    state.photos.unshift(ins.data); closeEnh(); renderPhotos(); showToast('Enhanced photo saved — clear it to use ✓');
+    const patch={ storage_path:path, thumb_path:tpath, bytes:blob.size, mime:enhState.mime,
+      width:bmp?bmp.width:p.width, height:bmp?bmp.height:p.height, updated_at:new Date().toISOString() };
+    const upd=await c.from('photos').update(patch).eq('id',p.id).select().single(); if(upd.error) throw upd.error;
+    Object.assign(p, upd.data);
+    if(typeof mzThumb!=='undefined' && mzThumb[p.id]) delete mzThumb[p.id];   // drop stale montage cache
+    const rm=[oldPath,oldThumb].filter(x=>x && x!==path && x!==tpath); if(rm.length) c.storage.from('photos').remove(rm);
+    closeEnh(); renderPhotos(); showToast('Photo enhanced in place ✓');
   }catch(err){ if(msg) msg.innerHTML='<div class="err"><b>Couldn’t save:</b> '+esc(err.message||'error')+'</div>'; }
 }
 (function(){
