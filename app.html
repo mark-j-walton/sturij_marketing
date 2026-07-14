@@ -506,6 +506,7 @@
     </div>
     <div class="section-label">Restriction history</div>
     <div class="card"><table><thead><tr><th>Date</th><th>Account</th><th>Severity</th><th>Likely trigger</th><th>Appeal</th></tr></thead><tbody id="safBody"></tbody></table></div>
+    <div id="safArchived" style="margin-top:28px"></div>
   </section>
 
   <!-- THEMES -->
@@ -662,7 +663,7 @@ function client(){ if(!sb && window.supabase) sb = window.supabase.createClient(
 
 const CAP = 12;                       // DESIGN + spec: 12 posts/day
 const TODAY = new Date().toISOString().slice(0,10);
-const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[], support:[], photos:[], templates:[], compositions:[], scheduled:[], themes:[] };
+const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[], support:[], photos:[], templates:[], compositions:[], scheduled:[], themes:[], archived:[] };
 
 const TABS = [
   ['Dashboard','<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></svg>'],
@@ -770,7 +771,8 @@ async function loadAll(){
       c.from('scheduled_posts').select('*'),
       c.from('themes').select('*'),
     ]);
-    state.groups = g.data||[]; state.posts = p.data||[]; state.restrictions = r.data||[]; state.dna = d.data||[]; state.support = s.data||[]; state.photos = ph.data||[];
+    const allG=g.data||[]; state.archived=allG.filter(x=>x.archived_at); state.groups=allG.filter(x=>!x.archived_at);
+    state.posts = p.data||[]; state.restrictions = r.data||[]; state.dna = d.data||[]; state.support = s.data||[]; state.photos = ph.data||[];
     state.templates = (tm.data||[]).sort((a,b)=>a.sort-b.sort); state.compositions = co.data||[]; state.scheduled = sp.data||[]; state.themes = (th.data||[]).sort((a,b)=>a.sort-b.sort||String(a.category).localeCompare(String(b.category)));
     renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPostBrowser(); renderPostCockpit(); renderDNA(); renderSupport(); renderPhotos(); renderMontage(); renderAudit(); renderRun(); renderSchedules(); renderThemes();
   }catch(e){
@@ -864,7 +866,8 @@ function gdEditForm(g){
     +gdArea('Context','context_summary',g.context_summary)+gdArea('Notes','notes',g.notes)
     +gdInput('Avoid — don’t mention (comma-separated)','avoid',(g.avoid||[]).join(', '))
     +gdInput('Tags (comma-separated)','tags',(g.tags||[]).join(', '))
-    +`<div class="dna-act" style="margin:6px 0 10px"><button class="btn-sm btn-post" data-gd="saveinfo">Save info</button><button class="btn-sm" data-gd="canceledit">Cancel</button></div>`;
+    +`<div class="dna-act" style="margin:6px 0 10px"><button class="btn-sm btn-post" data-gd="saveinfo">Save info</button><button class="btn-sm" data-gd="canceledit">Cancel</button></div>`
+    +`<div style="border-top:1px solid var(--line-soft);margin-top:8px;padding-top:12px"><button class="btn-sm" data-gd="archive" style="color:var(--danger);border-color:rgba(169,93,65,.35)">Archive this group</button><div class="muted" style="font-size:11.5px;margin-top:6px">Hides it from every list. Nothing is deleted — restore any time from <b>Safety</b>.</div></div>`;
 }
 function openGroup(id){
   const g=state.groups.find(x=>x.id===id); if(!g) return;
@@ -905,6 +908,7 @@ document.getElementById('gdBody').addEventListener('click', async e=>{
   const g=gdCurrent, act=b.dataset.gd;
   if(act==='editinfo'){ gdEdit=true; openGroup(g.id); return; }
   if(act==='canceledit'){ gdEdit=false; openGroup(g.id); return; }
+  if(act==='archive'){ archiveGroup(g); return; }
   if(act==='saveinfo'){ const body=document.getElementById('gdBody');
     const get=id=>{ const el=body.querySelector(`[data-gdi="${id}"]`); return el?el.value.trim():undefined; };
     const nm=get('name')||g.name;
@@ -979,7 +983,27 @@ function renderSafety(){
       <td class="muted">${esc(r.severity||'')}</td><td>${esc(r.likely_trigger||'—')}</td>
       <td class="muted">${esc(r.appeal_outcome||(r.appealed?'pending':'—'))}</td></tr>`).join('')
     ||'<tr><td colspan="5" class="muted">No restrictions logged.</td></tr>';
+  const arch=state.archived||[], ab=document.getElementById('safArchived');
+  if(ab) ab.innerHTML=`<div class="section-label">Archived groups</div>`
+    +(arch.length?`<div class="gacc"><div class="gacc-h"><svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg><span class="gacc-name">Archived</span><span class="gacc-stat"><span class="gpill neutral">${arch.length}</span></span></div>
+      <div class="gacc-b"><div class="card" style="padding:6px">${arch.slice().sort((a,b)=>String(b.archived_at||'').localeCompare(String(a.archived_at||''))).map(g=>`<div class="pk"><span class="dot ${g.tier}"></span><span class="nm">${esc(g.name)}</span><span class="a">${esc(g.area||'')}</span><button class="btn-sm" data-restore="${esc(g.id)}" style="margin-left:auto">Restore</button></div>`).join('')}</div></div></div>`
+      :`<div class="next-note">No archived groups. You can archive a group from its detail drawer (Edit info → Archive).</div>`);
 }
+async function archiveGroup(g){
+  const c=client(); if(!c) return;
+  try{ const now=new Date().toISOString(); const { error }=await c.from('groups').update({archived_at:now}).eq('id',g.id); if(error) throw error;
+    g.archived_at=now; state.groups=state.groups.filter(x=>x.id!==g.id); state.archived.unshift(g);
+    closeDrawer(); renderGroups(); renderPostBrowser(); renderPlan(); renderRun(); renderAudit(); renderDash(); renderSafety(); showToast(`Archived ${g.name}`);
+  }catch(e){ showToast('Archive failed'); }
+}
+async function restoreGroup(id){
+  const c=client(); if(!c) return; const g=state.archived.find(x=>x.id===id); if(!g) return;
+  try{ const { error }=await c.from('groups').update({archived_at:null}).eq('id',id); if(error) throw error;
+    g.archived_at=null; state.archived=state.archived.filter(x=>x.id!==id); state.groups.push(g);
+    renderGroups(); renderPostBrowser(); renderPlan(); renderRun(); renderAudit(); renderDash(); renderSafety(); showToast(`Restored ${g.name}`);
+  }catch(e){ showToast('Restore failed'); }
+}
+(function(){ const ab=document.getElementById('safArchived'); if(ab) ab.addEventListener('click',e=>{ const gh=e.target.closest('.gacc-h'); if(gh){ gh.parentElement.classList.toggle('open'); return; } const r=e.target.closest('[data-restore]'); if(r) restoreGroup(r.dataset.restore); }); })();
 
 /* ---- Post cockpit (guarded write) ---- */
 const VOICE = a => ([
