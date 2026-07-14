@@ -759,6 +759,7 @@
 <div class="lbx" id="lbx"><button class="lbx-x" id="lbxX" aria-label="Close">✕</button><div class="lbx-card" id="lbxCard"></div></div>
 <div class="lbx" id="vlbx"><button class="lbx-x" id="vlbxX" aria-label="Close">✕</button><div class="lbx-card" id="vlbxCard"></div></div>
 <div class="lbx" id="enh"><button class="lbx-x" id="enhX" aria-label="Close">✕</button><div class="lbx-card" id="enhCard" style="max-width:min(94vw,860px)"></div></div>
+<div class="lbx" id="plbx"><button class="lbx-x" id="plbxX" aria-label="Close">✕</button><div class="lbx-card" id="plbxCard" style="max-width:min(94vw,900px)"></div></div>
 
 <script>
 /* ============ Supabase client — reused verbatim from group_ledger.html ============ */
@@ -1518,7 +1519,7 @@ function photoCard(p){
   const tags=(p.tags||[]).map(t=>`<span class="gdchip">${esc(t)}</span>`).join('');
   return `<div class="card ph-c" data-id="${esc(p.id)}" style="margin-bottom:12px">
     <div style="display:flex;gap:14px;flex-wrap:wrap">
-      <div class="ph-thumb"><img data-path="${esc(p.thumb_path||'')}" alt=""></div>
+      <div class="ph-thumb ph-open" data-popen="${esc(p.id)}" title="Open photo" style="cursor:zoom-in"><img data-path="${esc(p.thumb_path||'')}" alt=""></div>
       <div style="flex:1;min-width:220px">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           ${cleared?'<span class="tchip green"><span class="dot green"></span>cleared</span>':'<span class="tchip red"><span class="dot red"></span>not cleared</span>'}
@@ -1589,6 +1590,7 @@ function phAction(e){
   const ps=e.target.closest('#phPageSize,#phPageSizeB'); if(ps){ phPageSize=+ps.value||10; phPage=0; renderPhotos(); return; }
   const pn=e.target.closest('[data-phpage]'); if(pn){ phPage+=(pn.dataset.phpage==='next'?1:-1); renderPhotos(); return; }
   const gh=e.target.closest('.gacc-h'); if(gh){ gh.parentElement.classList.toggle('open'); return; }
+  const po=e.target.closest('[data-popen]'); if(po){ const pp=state.photos.find(x=>x.id===po.dataset.popen); if(pp) openPhotoDetail(pp); return; }
   const cardEl=e.target.closest('.ph-c'); if(!cardEl) return;
   const p=state.photos.find(x=>x.id===cardEl.dataset.id); if(!p) return;
   const chk=e.target.closest('[data-chk]');
@@ -1608,6 +1610,43 @@ function phAction(e){
   document.querySelectorAll('[data-phv]').forEach(b=>b.addEventListener('click',()=>{ phView=b.dataset.phv; phPage=0;
     document.querySelectorAll('[data-phv]').forEach(x=>x.classList.toggle('on',x===b)); const se=document.getElementById('phSearch'); if(se) se.value=''; renderPhotos(); }));
   const body=document.getElementById('phBody'); if(body){ body.addEventListener('click',phAction); body.addEventListener('change',phAction); }
+})();
+
+/* ---- Photo detail lightbox (click a photo to open it big + act on it) ---- */
+let plbxPhoto=null;
+async function photoSignedUrl(p){ const c=client(); if(!c) return null; const { data }=await c.storage.from('photos').createSignedUrl(p.storage_path,3600); return data&&data.signedUrl||null; }
+async function openPhotoDetail(p){
+  const card=document.getElementById('plbxCard'); if(!card) return; plbxPhoto=p;
+  const cleared=p.cleared_for_public;
+  const tags=(p.tags||[]).map(t=>`<span class="gdchip">${esc(t)}</span>`).join('')||'<span class="muted">no tags</span>';
+  card.innerHTML=`<div style="padding:4px">
+    <div class="ph-detail-img" style="text-align:center;background:#0e0b08;border-radius:10px;min-height:120px;display:flex;align-items:center;justify-content:center"><div class="muted" style="padding:40px">Loading…</div></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px">
+      ${cleared?'<span class="tchip green"><span class="dot green"></span>cleared</span>':'<span class="tchip red"><span class="dot red"></span>not cleared</span>'}
+      <span class="gdchip">${esc(p.photo_state||'raw')}</span>
+      <span class="muted" style="font-size:12px">${p.width&&p.height?p.width+'×'+p.height:''}${p.bytes?' · '+Math.round(p.bytes/1024)+' KB':''}</span>
+    </div>
+    <div class="v${p.description?'':' empty'}" style="margin:8px 0;font-size:14px">${p.description?esc(p.description):'No description yet.'}</div>
+    <div style="margin-bottom:12px">${tags}</div>
+    <div class="dna-act" style="justify-content:flex-end"><button class="btn-sm" data-pd="download">⬇ Download</button><button class="btn-sm btn-post" data-pd="enhance">✨ AI enhance</button></div>
+    ${cleared?'':'<div class="muted" style="font-size:11.5px;margin-top:8px;text-align:right">Clear this photo for public use from its card in the list.</div>'}
+  </div>`;
+  document.getElementById('plbx').classList.add('on');
+  const url=await photoSignedUrl(p), box=card.querySelector('.ph-detail-img');
+  if(box) box.innerHTML=url?`<img src="${esc(url)}" alt="" style="max-width:100%;max-height:64vh;border-radius:10px;display:block">`:'<div class="err" style="margin:20px">Couldn’t load the image.</div>';
+}
+function closePlbx(){ const l=document.getElementById('plbx'); if(l) l.classList.remove('on'); plbxPhoto=null; }
+async function photoDownload(p){ const url=await photoSignedUrl(p); if(!url){ showToast('Download failed'); return; }
+  try{ const b=await (await fetch(url)).blob(); const ext=(p.mime||'image/jpeg').split('/')[1]||'jpg'; dlBlob(`photo-${((p.tags&&p.tags[0])||'image').replace(/[^a-z0-9]+/gi,'-').toLowerCase()}.${ext}`,b); }
+  catch(e){ window.open(url,'_blank'); } }
+(function(){
+  const card=document.getElementById('plbxCard'), l=document.getElementById('plbx'), x=document.getElementById('plbxX');
+  if(card) card.addEventListener('click',e=>{ const b=e.target.closest('[data-pd]'); if(!b||!plbxPhoto) return;
+    if(b.dataset.pd==='download') photoDownload(plbxPhoto);
+    else if(b.dataset.pd==='enhance'){ const p=plbxPhoto; closePlbx(); aiEnhance(p); } });
+  if(x) x.addEventListener('click',closePlbx);
+  if(l) l.addEventListener('click',e=>{ if(e.target===l) closePlbx(); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') closePlbx(); });
 })();
 
 /* ---- AI image enhance (Nano-Banana, colour/tone only; saves a NEW uncleared photo) ---- */
