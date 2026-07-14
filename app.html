@@ -261,6 +261,22 @@
   .rp-h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
   .rp-copy{width:100%;min-height:118px;background:var(--card);color:var(--ink-body);border:1px solid var(--line-soft);border-radius:9px;padding:11px;font-size:14px;line-height:1.5;resize:vertical;font-family:inherit}
   .rp-copy:focus{outline:none;border-color:var(--bronze)}
+  /* template builder (Montage · New template) */
+  .tb-ov{position:fixed;inset:0;background:rgba(10,8,6,.66);backdrop-filter:blur(3px);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+  .tb-modal{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;box-shadow:var(--shadow-card);width:min(560px,96vw);max-height:92vh;overflow:auto;padding:20px}
+  .tb-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .tb-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .tb-f{flex:1;min-width:120px;display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ink-muted)}
+  .tb-wrap{display:grid;grid-template-columns:22px 1fr;grid-template-rows:22px 1fr;margin:6px 0 12px}
+  .tb-rt{grid-column:2;grid-row:1;height:22px;background:rgba(212,170,88,.12);border:1px dashed var(--line-soft);border-radius:5px 5px 0 0;cursor:grab}
+  .tb-rl{grid-column:1;grid-row:2;width:22px;background:rgba(212,170,88,.12);border:1px dashed var(--line-soft);border-radius:5px 0 0 5px;cursor:grab}
+  .tb-stage{grid-column:2;grid-row:2;position:relative;background:#0e1820;border:1px solid var(--line-soft);overflow:hidden;touch-action:none;width:100%}
+  .tb-cell{position:absolute;border:1px solid rgba(250,248,242,.10);box-sizing:border-box;background:rgba(255,255,255,.015)}
+  .tb-line{position:absolute;background:#d4aa58;z-index:3;touch-action:none}
+  .tb-line.v{top:0;bottom:0;width:3px;margin-left:-1.5px;cursor:ew-resize}
+  .tb-line.h{left:0;right:0;height:3px;margin-top:-1.5px;cursor:ns-resize}
+  .tb-line:hover{box-shadow:0 0 0 3px rgba(212,170,88,.25)}
+  .tb-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   /* advert tiles + lightbox (shared: Photos>Adverts, dashboard showcase) */
   .adv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
   .adv-tile{border-radius:12px;overflow:hidden;cursor:pointer;background:var(--card);border:1px solid var(--line-soft);box-shadow:var(--shadow-card);transition:transform .12s,box-shadow .12s}
@@ -1598,16 +1614,23 @@ async function mzLoadThumb(p){
   rec.img.onload=()=>{ rec.ready=true; if(mz.template && state.tab==='Montage') mzDraw(); };
   rec.img.src=data.signedUrl;
 }
+function cellRects(t){
+  if(t && Array.isArray(t.cells) && t.cells.length) return t.cells;
+  const cols=t&&t.cols||1, rows=t&&t.rows||1, out=[];
+  for(let row=0;row<rows;row++) for(let col=0;col<cols;col++) out.push({x:col/cols,y:row/rows,w:1/cols,h:1/rows});
+  return out;
+}
+function cellCount(t){ return cellRects(t).length; }
 function mzDraw(){
   const cv=document.getElementById('mzC'); const t=mz.template; if(!cv||!t) return;
   const cssW=cv.clientWidth||460, cssH=cssW*t.height/t.width;
   const dpr=Math.min(2, self.devicePixelRatio||1);
   cv.style.height=cssH+'px'; cv.width=Math.round(cssW*dpr); cv.height=Math.round(cssH*dpr);
   const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
-  const cw=cssW/t.cols, ch=cssH/t.rows;
   ctx.fillStyle='#0e1820'; ctx.fillRect(0,0,cssW,cssH);
+  const rects=cellRects(t);
   for(let i=0;i<mz.cells.length;i++){
-    const col=i%t.cols, row=Math.floor(i/t.cols), x=col*cw, y=row*ch;
+    const R=rects[i]||{x:0,y:0,w:0,h:0}, x=R.x*cssW, y=R.y*cssH, cw=R.w*cssW, ch=R.h*cssH;
     const cell=mz.cells[i], p=cell&&photoById(cell.photo_id), rec=p&&mzThumb[p.id];
     ctx.save(); ctx.beginPath(); ctx.rect(x,y,cw,ch); ctx.clip();
     if(rec&&rec.ready){ const iw=rec.img.naturalWidth, ih=rec.img.naturalHeight;
@@ -1626,8 +1649,9 @@ function mzCellFromEvent(e){
   const cv=document.getElementById('mzC'), t=mz.template; if(!cv||!t) return -1;
   const rc=cv.getBoundingClientRect(); const px=(e.clientX-rc.left)/rc.width, py=(e.clientY-rc.top)/rc.height;
   if(px<0||px>1||py<0||py>1) return -1;
-  const col=Math.min(t.cols-1,Math.floor(px*t.cols)), row=Math.min(t.rows-1,Math.floor(py*t.rows));
-  return row*t.cols+col;
+  const rects=cellRects(t);
+  for(let i=0;i<rects.length;i++){ const R=rects[i]; if(px>=R.x&&px<R.x+R.w&&py>=R.y&&py<R.y+R.h) return i; }
+  return -1;
 }
 function mzUpdateTools(){
   const z=document.getElementById('mzZoom'), lk=document.getElementById('mzLock');
@@ -1670,10 +1694,10 @@ async function mzRenderRecipe(t, cells, maxW){
   const W=maxW?Math.min(t.width,maxW):t.width, k=W/t.width, H=Math.round(t.height*k);
   const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const ctx=cv.getContext('2d');
   ctx.fillStyle='#0e1820'; ctx.fillRect(0,0,W,H);
-  const cw=W/t.cols, ch=H/t.rows;
+  const rects=cellRects(t);
   for(let i=0;i<cells.length;i++){ const cell=cells[i]; if(!cell) continue; const p=photoById(cell.photo_id); if(!p) continue;
     let img; try{ img=await loadOrig(p); }catch(e){ continue; }
-    const col=i%t.cols, row=Math.floor(i/t.cols), x=col*cw, y=row*ch;
+    const R=rects[i]||{x:0,y:0,w:0,h:0}, x=R.x*W, y=R.y*H, cw=R.w*W, ch=R.h*H;
     const r=cropRect(img.naturalWidth,img.naturalHeight,cw,ch,cell.z,cell.fx,cell.fy);
     ctx.save(); ctx.beginPath(); ctx.rect(x,y,cw,ch); ctx.clip(); ctx.drawImage(img,r.sx,r.sy,r.sw,r.sh,x,y,cw,ch); ctx.restore(); }
   return cv;
@@ -1744,7 +1768,7 @@ function renderEditor(){
     const cell=mz.cells[i]; if(!cell){ mzDraw(); mzOpenPicker(); return; }
     mz.drag={ x:e.clientX, y:e.clientY }; cv.setPointerCapture(e.pointerId); mzDraw(); });
   cv.addEventListener('pointermove',e=>{ if(!mz.drag||mz.sel<0) return; const cell=mz.cells[mz.sel]; const p=photoById(cell.photo_id), rec=p&&mzThumb[p.id]; if(!rec||!rec.ready) return;
-    const rc=cv.getBoundingClientRect(); const cw=rc.width/mz.template.cols, ch=rc.height/mz.template.rows;
+    const rc=cv.getBoundingClientRect(); const R=cellRects(mz.template)[mz.sel]||{w:1,h:1}; const cw=rc.width*R.w, ch=rc.height*R.h;
     const iw=rec.img.naturalWidth, ih=rec.img.naturalHeight; const s0=Math.max(cw/iw,ch/ih), s=s0*cell.z;
     const dx=e.clientX-mz.drag.x, dy=e.clientY-mz.drag.y; mz.drag={ x:e.clientX, y:e.clientY };
     cell.fx=Math.max(0,Math.min(1, cell.fx - (dx/s)/iw)); cell.fy=Math.max(0,Math.min(1, cell.fy - (dy/s)/ih)); mzDraw(); });
@@ -1783,7 +1807,7 @@ async function compAction(e){
   const co=state.compositions.find(x=>x.id===cardEl.dataset.cid); if(!co) return; const act=btn.dataset.cact;
   if(act==='schedule'){ openScheduleComp(co); return; }
   if(act==='edit'){ const t=state.templates.find(x=>x.id===co.template_id); if(!t) return;
-    mz.template=t; mz.cells=(co.cells||[]).map(c2=>c2?Object.assign({},c2):null); while(mz.cells.length<t.cols*t.rows) mz.cells.push(null);
+    mz.template=t; mz.cells=(co.cells||[]).map(c2=>c2?Object.assign({},c2):null); while(mz.cells.length<cellCount(t)) mz.cells.push(null);
     mz.sel=-1; mzView='build'; document.querySelectorAll('[data-mzv]').forEach(x=>x.classList.toggle('on',x.dataset.mzv==='build'));
     document.getElementById('mzBuild').style.display=''; document.getElementById('mzSaved').style.display='none';
     document.querySelectorAll('#mzTemplates .chip').forEach(x=>x.classList.toggle('on',x.dataset.tpl===t.id));
@@ -1799,8 +1823,8 @@ async function compAction(e){
 }
 function renderMontage(){
   const tp=document.getElementById('mzTemplates');
-  if(tp){ tp.innerHTML=state.templates.map(t=>`<button class="chip mz-tpl${mz.template&&mz.template.id===t.id?' on':''}" data-tpl="${esc(t.id)}">${esc(t.name)} <span class="muted" style="font-size:10px">${t.cols}×${t.rows}</span></button>`).join('')
-      ||'<span class="muted">No templates.</span>'; }
+  if(tp){ tp.innerHTML=state.templates.map(t=>`<button class="chip mz-tpl${mz.template&&mz.template.id===t.id?' on':''}" data-tpl="${esc(t.id)}">${esc(t.name)} <span class="muted" style="font-size:10px">${t.kind==='custom'?cellCount(t)+' cells':t.cols+'×'+t.rows}</span>${t.kind==='custom'?` <span data-tpldel="${esc(t.id)}" title="Delete template" style="margin-left:4px;color:var(--danger);cursor:pointer">✕</span>`:''}</button>`).join('')
+      +`<button class="chip mz-tpl" data-tplnew="1" style="border-style:dashed">+ New template</button>`; }
   renderEditor(); renderCompositions();
 }
 (function(){
@@ -1810,12 +1834,97 @@ function renderMontage(){
     document.getElementById('mzSaved').style.display=mzView==='saved'?'':'none';
     if(mzView==='build') mzDraw(); else renderCompositions(); }));
   const tp=document.getElementById('mzTemplates');
-  if(tp) tp.addEventListener('click',e=>{ const b=e.target.closest('[data-tpl]'); if(!b) return; const t=state.templates.find(x=>x.id===b.dataset.tpl); if(!t) return;
-    mz.template=t; mz.cells=Array.from({length:t.cols*t.rows},()=>null); mz.sel=-1;
+  if(tp) tp.addEventListener('click',e=>{
+    const del=e.target.closest('[data-tpldel]'); if(del){ e.stopPropagation(); delTemplate(del.dataset.tpldel); return; }
+    const nw=e.target.closest('[data-tplnew]'); if(nw){ openTemplateBuilder(); return; }
+    const b=e.target.closest('[data-tpl]'); if(!b) return; const t=state.templates.find(x=>x.id===b.dataset.tpl); if(!t) return;
+    mz.template=t; mz.cells=Array.from({length:cellCount(t)},()=>null); mz.sel=-1;
     tp.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===b)); renderEditor(); });
   const gal=document.getElementById('mzGallery'); if(gal) gal.addEventListener('click',compAction);
   const se=document.getElementById('mzSearch'); if(se) se.addEventListener('input',renderCompositions);
 })();
+
+/* ---- Template builder: width×height + pull divider lines from top/left rulers ---- */
+let tb=null;
+function tbClamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function openTemplateBuilder(){
+  tb={ w:1080, h:1080, vlines:[], hlines:[], drag:null };
+  const ov=document.createElement('div'); ov.className='tb-ov'; ov.id='tbOv';
+  ov.innerHTML=`<div class="tb-modal">
+    <div class="tb-head"><h2 style="margin:0">New template</h2><button class="btn-sm" data-tb="cancel" style="margin-left:auto">✕ Close</button></div>
+    <div class="tb-row">
+      <label class="tb-f">Name<input class="search" id="tbName" placeholder="e.g. 4-up strip" style="width:100%"></label>
+      <label class="tb-f">Width px<input class="search" id="tbW" type="number" value="1080" min="200" max="4000" style="width:100%"></label>
+      <label class="tb-f">Height px<input class="search" id="tbH" type="number" value="1080" min="200" max="4000" style="width:100%"></label>
+    </div>
+    <p class="muted" style="font-size:12.5px;margin:4px 0 10px">Pull a line down from the <b>top ruler</b> for a vertical split, or in from the <b>left ruler</b> for a horizontal one. Drag any line to move it; double-click a line to remove it.</p>
+    <div class="tb-wrap">
+      <div class="tb-corner"></div>
+      <div class="tb-rt" id="tbRT" title="Pull down for a vertical divider"></div>
+      <div class="tb-rl" id="tbRL" title="Pull in for a horizontal divider"></div>
+      <div class="tb-stage" id="tbStage"></div>
+    </div>
+    <div class="tb-foot"><span class="muted" id="tbInfo" style="font-size:12px"></span><div class="dna-act" style="margin-left:auto"><button class="btn-sm" data-tb="cancel">Cancel</button><button class="btn-sm btn-post" data-tb="save">Save template</button></div></div>
+  </div>`;
+  document.body.appendChild(ov);
+  const W=document.getElementById('tbW'), H=document.getElementById('tbH'), stage=document.getElementById('tbStage');
+  const applyDim=()=>{ tb.w=tbClamp(+W.value||1080,200,4000); tb.h=tbClamp(+H.value||1080,200,4000); stage.style.aspectRatio=tb.w+' / '+tb.h; tbRender(); };
+  W.addEventListener('change',applyDim); H.addEventListener('change',applyDim); applyDim();
+  ov.addEventListener('click',e=>{ const b=e.target.closest('[data-tb]'); if(!b) return; if(b.dataset.tb==='save') tbSave(); else closeTemplateBuilder(); });
+  document.getElementById('tbRT').addEventListener('pointerdown',e=>{ e.preventDefault(); const rc=stage.getBoundingClientRect();
+    tb.vlines.push(tbClamp((e.clientX-rc.left)/rc.width,0.03,0.97)); tb.drag={axis:'v',idx:tb.vlines.length-1}; tbRender(); });
+  document.getElementById('tbRL').addEventListener('pointerdown',e=>{ e.preventDefault(); const rc=stage.getBoundingClientRect();
+    tb.hlines.push(tbClamp((e.clientY-rc.top)/rc.height,0.03,0.97)); tb.drag={axis:'h',idx:tb.hlines.length-1}; tbRender(); });
+  window.addEventListener('pointermove',tbMove); window.addEventListener('pointerup',tbUp);
+}
+function tbMove(e){ if(!tb||!tb.drag) return; const stage=document.getElementById('tbStage'); if(!stage) return; const rc=stage.getBoundingClientRect();
+  if(tb.drag.axis==='v') tb.vlines[tb.drag.idx]=tbClamp((e.clientX-rc.left)/rc.width,0.02,0.98);
+  else tb.hlines[tb.drag.idx]=tbClamp((e.clientY-rc.top)/rc.height,0.02,0.98);
+  tbRender(); }
+function tbUp(){ if(tb) tb.drag=null; }
+function tbRender(){
+  const stage=document.getElementById('tbStage'); if(!stage||!tb) return;
+  const xs=[0,...tb.vlines,1].sort((a,b)=>a-b), ys=[0,...tb.hlines,1].sort((a,b)=>a-b);
+  let html='';
+  for(let r=0;r<ys.length-1;r++) for(let c=0;c<xs.length-1;c++)
+    html+=`<div class="tb-cell" style="left:${xs[c]*100}%;top:${ys[r]*100}%;width:${(xs[c+1]-xs[c])*100}%;height:${(ys[r+1]-ys[r])*100}%"></div>`;
+  tb.vlines.forEach((f,i)=>{ html+=`<div class="tb-line v" data-vline="${i}" style="left:${f*100}%"></div>`; });
+  tb.hlines.forEach((f,i)=>{ html+=`<div class="tb-line h" data-hline="${i}" style="top:${f*100}%"></div>`; });
+  stage.innerHTML=html;
+  stage.querySelectorAll('[data-vline]').forEach(el=>{
+    el.addEventListener('pointerdown',e=>{ e.preventDefault(); e.stopPropagation(); tb.drag={axis:'v',idx:+el.dataset.vline}; });
+    el.addEventListener('dblclick',()=>{ tb.vlines.splice(+el.dataset.vline,1); tb.drag=null; tbRender(); }); });
+  stage.querySelectorAll('[data-hline]').forEach(el=>{
+    el.addEventListener('pointerdown',e=>{ e.preventDefault(); e.stopPropagation(); tb.drag={axis:'h',idx:+el.dataset.hline}; });
+    el.addEventListener('dblclick',()=>{ tb.hlines.splice(+el.dataset.hline,1); tb.drag=null; tbRender(); }); });
+  const cols=xs.length-1, rows=ys.length-1, info=document.getElementById('tbInfo');
+  if(info) info.textContent=`${cols}×${rows} grid · ${cols*rows} cell${cols*rows===1?'':'s'} · ${tb.w}×${tb.h}px`;
+}
+function closeTemplateBuilder(){ window.removeEventListener('pointermove',tbMove); window.removeEventListener('pointerup',tbUp); const ov=document.getElementById('tbOv'); if(ov) ov.remove(); tb=null; }
+async function tbSave(){
+  if(!tb) return; const c=client(); if(!c){ showToast('No database connection'); return; }
+  const name=(document.getElementById('tbName').value||'').trim(); if(!name){ showToast('Name the template first'); const n=document.getElementById('tbName'); if(n) n.focus(); return; }
+  const xs=[0,...tb.vlines,1].sort((a,b)=>a-b), ys=[0,...tb.hlines,1].sort((a,b)=>a-b);
+  const cells=[]; for(let r=0;r<ys.length-1;r++) for(let cc=0;cc<xs.length-1;cc++)
+    cells.push({ x:+xs[cc].toFixed(4), y:+ys[r].toFixed(4), w:+(xs[cc+1]-xs[cc]).toFixed(4), h:+(ys[r+1]-ys[r]).toFixed(4) });
+  const id=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():'tpl-'+Date.now();
+  const sort=state.templates.reduce((m,t)=>Math.max(m,t.sort||0),0)+1;
+  const row={ id, name, kind:'custom', cols:xs.length-1, rows:ys.length-1, width:tb.w, height:tb.h, cells, sort };
+  try{ const { data, error }=await c.from('templates').insert(row).select().single(); if(error) throw error;
+    state.templates.push(data); state.templates.sort((a,b)=>a.sort-b.sort);
+    closeTemplateBuilder(); renderMontage(); showToast('Template saved ✓');
+  }catch(err){ showToast('Couldn’t save template'); }
+}
+async function delTemplate(id){
+  const t=state.templates.find(x=>x.id===id); if(!t) return;
+  if(state.compositions.some(co=>co.template_id===id)){ showToast('Can’t delete — adverts use this template'); return; }
+  if(!confirm(`Delete template “${t.name}”?`)) return;
+  const c=client(); if(!c) return;
+  try{ const { error }=await c.from('templates').delete().eq('id',id); if(error) throw error;
+    state.templates=state.templates.filter(x=>x.id!==id); if(mz.template&&mz.template.id===id){ mz.template=null; mz.cells=[]; mz.sel=-1; }
+    renderMontage(); showToast('Template deleted');
+  }catch(err){ showToast('Delete failed'); }
+}
 
 /* ---- Audit (data-readiness worklist: url + posting rule) ---- */
 const AUDIT_DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
