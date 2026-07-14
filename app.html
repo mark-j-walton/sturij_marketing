@@ -211,6 +211,18 @@
   .ph-thumb img{width:100%;height:100%;object-fit:cover;display:block}
   .ph-chk{display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:6px;cursor:pointer;line-height:1.4;color:var(--ink-body)}
   .ph-chk input{margin-top:2px;flex:none}
+  .mz-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  .mz-zoom{display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-muted)}
+  .mz-zoom input{accent-color:var(--bronze)}
+  .mz-stagewrap{display:flex;justify-content:center;background:rgba(35,31,27,.05);border-radius:12px;padding:14px}
+  :root[data-theme="dark"] .mz-stagewrap{background:rgba(0,0,0,.22)}
+  .mz-canvas{width:100%;max-width:460px;border-radius:8px;touch-action:none;cursor:grab;box-shadow:0 6px 24px rgba(0,0,0,.16)}
+  .mz-canvas:active{cursor:grabbing}
+  .mz-picker{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:8px;max-height:260px;overflow:auto;padding:10px;border:1px solid var(--line-soft);border-radius:10px}
+  .mz-pt{aspect-ratio:1;border-radius:8px;overflow:hidden;cursor:pointer;background:rgba(35,31,27,.06);border:2px solid transparent}
+  .mz-pt:hover{border-color:var(--gold)} .mz-pt img{width:100%;height:100%;object-fit:cover;display:block}
+  .mz-tpl{cursor:pointer}
+  .mz-g{margin-bottom:12px}
 
   /* ===== Responsive — Polly on tablet/phone ===== */
   @media(max-width:860px){
@@ -399,6 +411,31 @@
     <div id="phBody"></div>
   </section>
 
+  <!-- MONTAGE -->
+  <section class="panel" data-panel="Montage">
+    <span class="kicker">Advert builder</span>
+    <h1>Montage</h1>
+    <p class="sub">Compose your <b>cleared</b> photos into an advert. Pick a layout, drop a photo into each cell, nudge and zoom to frame it, lock the ones you like and remix the rest. Only cleared photos can be used.</p>
+
+    <div class="toolbar">
+      <button class="chip on" data-mzv="build">Build</button>
+      <button class="chip" data-mzv="saved">Saved adverts</button>
+    </div>
+
+    <div id="mzBuild">
+      <div class="card" style="margin-bottom:16px">
+        <div class="section-label" style="margin:0 0 10px">Layout</div>
+        <div class="toolbar" id="mzTemplates"></div>
+      </div>
+      <div id="mzEditor"></div>
+    </div>
+
+    <div id="mzSaved" style="display:none">
+      <div class="toolbar"><input class="search" id="mzSearch" placeholder="Search saved adverts by title or tag…"></div>
+      <div id="mzGallery"></div>
+    </div>
+  </section>
+
 </div></main>
 
 <!-- ============ GROUP DETAIL DRAWER ============ -->
@@ -420,7 +457,7 @@ function client(){ if(!sb && window.supabase) sb = window.supabase.createClient(
 
 const CAP = 12;                       // DESIGN + spec: 12 posts/day
 const TODAY = new Date().toISOString().slice(0,10);
-const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[], support:[], photos:[] };
+const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[], support:[], photos:[], templates:[], compositions:[] };
 
 const TABS = [
   ['Dashboard','<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></svg>'],
@@ -430,6 +467,7 @@ const TABS = [
   ['DNA','<svg viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22.5v-18z"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/></svg>'],
   ['Safety','<svg viewBox="0 0 24 24"><path d="M12 3l8 3.5v5c0 5-3.4 8.7-8 9.5-4.6-.8-8-4.5-8-9.5v-5L12 3z"/></svg>'],
   ['Photos','<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M21 16l-5-5-6 6-3-3-4 4"/></svg>'],
+  ['Montage','<svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.4"/><rect x="13" y="3" width="8" height="8" rx="1.4"/><rect x="3" y="13" width="8" height="8" rx="1.4"/><rect x="13" y="13" width="8" height="8" rx="1.4"/></svg>'],
   ['Support','<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4"/><path d="M5 5l4.1 4.1M14.9 14.9L19 19M19 5l-4.1 4.1M9.1 14.9L5 19"/></svg>'],
 ];
 
@@ -441,6 +479,7 @@ function showTab(t){
   state.tab=t;
   document.querySelectorAll('.rail-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on', p.dataset.panel===t));
+  if(t==='Montage' && typeof mzDraw==='function') setTimeout(mzDraw,0);   // canvas needs a visible width to size correctly
 }
 
 /* ---- theme (from index.html) ---- */
@@ -509,16 +548,19 @@ async function loadAll(){
   const c = client();
   if(!c){ document.getElementById('dashStats').innerHTML='<div class="loading">Couldn’t load the data library — check your connection and reload.</div>'; return; }
   try{
-    const [g,p,r,d,s,ph] = await Promise.all([
+    const [g,p,r,d,s,ph,tm,co] = await Promise.all([
       c.from('groups').select('*'),
       c.from('posting_log').select('*'),
       c.from('restrictions').select('*'),
       c.from('dna').select('*'),
       c.from('support_tickets').select('*'),
       c.from('photos').select('*'),
+      c.from('templates').select('*'),
+      c.from('compositions').select('*'),
     ]);
     state.groups = g.data||[]; state.posts = p.data||[]; state.restrictions = r.data||[]; state.dna = d.data||[]; state.support = s.data||[]; state.photos = ph.data||[];
-    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPost(); renderDNA(); renderSupport(); renderPhotos();
+    state.templates = (tm.data||[]).sort((a,b)=>a.sort-b.sort); state.compositions = co.data||[];
+    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPost(); renderDNA(); renderSupport(); renderPhotos(); renderMontage();
   }catch(e){
     document.getElementById('dashStats').innerHTML=
       '<div class="err" style="grid-column:1/-1"><b>Couldn’t reach the database.</b> Check your connection, then <button onclick="loadAll()">retry</button>.</div>';
@@ -1002,6 +1044,246 @@ function phAction(e){
   document.querySelectorAll('[data-phv]').forEach(b=>b.addEventListener('click',()=>{ phView=b.dataset.phv;
     document.querySelectorAll('[data-phv]').forEach(x=>x.classList.toggle('on',x===b)); const se=document.getElementById('phSearch'); if(se) se.value=''; renderPhotos(); }));
   const body=document.getElementById('phBody'); if(body){ body.addEventListener('click',phAction); body.addEventListener('change',phAction); }
+})();
+
+/* ---- Montage builder (compose cleared photos -> adverts) ---- */
+const mz = { template:null, cells:[], sel:-1, drag:null };
+const mzThumb = {};   // photo_id -> { url, img, ready }
+let mzView='build';
+function photoById(id){ return state.photos.find(x=>x.id===id); }
+function clearedPhotos(){ return state.photos.filter(p=>p.cleared_for_public); }
+function cropRect(iw,ih,cw,ch,z,fx,fy){
+  const s0=Math.max(cw/iw, ch/ih), s=s0*(z||1);
+  const sw=cw/s, sh=ch/s;
+  let sx=fx*iw - sw/2, sy=fy*ih - sh/2;
+  sx=Math.max(0,Math.min(iw-sw,sx)); sy=Math.max(0,Math.min(ih-sh,sy));
+  return {sx,sy,sw,sh};
+}
+async function mzLoadThumb(p){
+  if(!p||!p.thumb_path) return; if(mzThumb[p.id]) return;
+  const c=client(); if(!c) return;
+  const { data }=await c.storage.from('photos').createSignedUrl(p.thumb_path,3600);
+  if(!data||!data.signedUrl) return;
+  const rec={ url:data.signedUrl, img:new Image(), ready:false }; mzThumb[p.id]=rec;
+  rec.img.onload=()=>{ rec.ready=true; if(mz.template && state.tab==='Montage') mzDraw(); };
+  rec.img.src=data.signedUrl;
+}
+function mzDraw(){
+  const cv=document.getElementById('mzC'); const t=mz.template; if(!cv||!t) return;
+  const cssW=cv.clientWidth||460, cssH=cssW*t.height/t.width;
+  const dpr=Math.min(2, self.devicePixelRatio||1);
+  cv.style.height=cssH+'px'; cv.width=Math.round(cssW*dpr); cv.height=Math.round(cssH*dpr);
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  const cw=cssW/t.cols, ch=cssH/t.rows;
+  ctx.fillStyle='#0e1820'; ctx.fillRect(0,0,cssW,cssH);
+  for(let i=0;i<mz.cells.length;i++){
+    const col=i%t.cols, row=Math.floor(i/t.cols), x=col*cw, y=row*ch;
+    const cell=mz.cells[i], p=cell&&photoById(cell.photo_id), rec=p&&mzThumb[p.id];
+    ctx.save(); ctx.beginPath(); ctx.rect(x,y,cw,ch); ctx.clip();
+    if(rec&&rec.ready){ const iw=rec.img.naturalWidth, ih=rec.img.naturalHeight;
+      const r=cropRect(iw,ih,cw,ch,cell.z,cell.fx,cell.fy); ctx.drawImage(rec.img,r.sx,r.sy,r.sw,r.sh,x,y,cw,ch);
+    } else { ctx.fillStyle=(i%2?'#182a37':'#1c313f'); ctx.fillRect(x,y,cw,ch);
+      ctx.fillStyle='rgba(250,248,242,.4)'; ctx.font='500 13px DM Sans, sans-serif'; ctx.textAlign='center';
+      ctx.fillText(cell?'…':'+ add photo', x+cw/2, y+ch/2); }
+    ctx.restore();
+    if(cell&&cell.locked){ ctx.fillStyle='rgba(212,170,88,.92)'; ctx.beginPath(); ctx.arc(x+cw-13,y+13,8,0,7); ctx.fill();
+      ctx.fillStyle='#182a37'; ctx.font='700 10px DM Sans'; ctx.textAlign='center'; ctx.fillText('L',x+cw-13,y+16.5); }
+    ctx.strokeStyle=(i===mz.sel)?'#d4aa58':'rgba(250,248,242,.14)'; ctx.lineWidth=(i===mz.sel)?3:1;
+    ctx.strokeRect(x+0.5,y+0.5,cw-1,ch-1);
+  }
+}
+function mzCellFromEvent(e){
+  const cv=document.getElementById('mzC'), t=mz.template; if(!cv||!t) return -1;
+  const rc=cv.getBoundingClientRect(); const px=(e.clientX-rc.left)/rc.width, py=(e.clientY-rc.top)/rc.height;
+  if(px<0||px>1||py<0||py>1) return -1;
+  const col=Math.min(t.cols-1,Math.floor(px*t.cols)), row=Math.min(t.rows-1,Math.floor(py*t.rows));
+  return row*t.cols+col;
+}
+function mzUpdateTools(){
+  const z=document.getElementById('mzZoom'), lk=document.getElementById('mzLock');
+  const cell=mz.sel>=0?mz.cells[mz.sel]:null;
+  if(z) z.value=cell?cell.z:1;
+  if(lk) lk.textContent=cell&&cell.locked?'Unlock cell':'Lock cell';
+}
+function mzOpenPicker(){
+  const box=document.getElementById('mzPicker'); if(!box) return;
+  const cp=clearedPhotos();
+  box.style.display='grid';
+  box.innerHTML=cp.length?cp.map(p=>`<div class="mz-pt" data-pick="${esc(p.id)}"><img data-path="${esc(p.thumb_path||'')}" alt=""></div>`).join('')
+    :'<div class="muted" style="grid-column:1/-1;font-size:13px">No cleared photos yet. Clear some in the Photos tab first.</div>';
+  // sign the picker thumbs
+  (async()=>{ const c=client(); if(!c) return; const imgs=[...box.querySelectorAll('img[data-path]')].filter(i=>i.dataset.path);
+    const paths=[...new Set(imgs.map(i=>i.dataset.path))]; if(!paths.length) return;
+    const { data }=await c.storage.from('photos').createSignedUrls(paths,3600); const m={}; (data||[]).forEach(d=>{ if(d&&d.path&&d.signedUrl) m[d.path]=d.signedUrl; });
+    imgs.forEach(i=>{ if(m[i.dataset.path]) i.src=m[i.dataset.path]; }); })();
+}
+function mzAssign(i, photoId){
+  const p=photoById(photoId); if(!p) return;
+  mz.cells[i]={ photo_id:photoId, z:1, fx:.5, fy:.5, locked:false };
+  mzLoadThumb(p); mzUpdateTools(); mzDraw();
+}
+function mzRemix(){
+  const cp=clearedPhotos(); if(!cp.length){ const m=document.getElementById('mzMsg'); if(m) m.innerHTML='<div class="err">No cleared photos to remix in.</div>'; return; }
+  const pool=cp.slice();
+  for(let i=0;i<mz.cells.length;i++){ const cell=mz.cells[i]; if(cell&&cell.locked) continue;
+    const pick=pool[Math.floor(Math.random()*pool.length)];
+    mz.cells[i]={ photo_id:pick.id, z:1, fx:.5, fy:.5, locked:false }; mzLoadThumb(pick); }
+  mzDraw();
+}
+async function loadOrig(p){
+  const c=client(); const { data }=await c.storage.from('photos').createSignedUrl(p.storage_path,3600);
+  if(!data||!data.signedUrl) throw new Error('no url');
+  return await new Promise((res,rej)=>{ const img=new Image(); img.crossOrigin='anonymous';
+    img.onload=()=>res(img); img.onerror=()=>rej(new Error('image load failed')); img.src=data.signedUrl; });
+}
+async function mzRenderRecipe(t, cells, maxW){
+  const W=maxW?Math.min(t.width,maxW):t.width, k=W/t.width, H=Math.round(t.height*k);
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const ctx=cv.getContext('2d');
+  ctx.fillStyle='#0e1820'; ctx.fillRect(0,0,W,H);
+  const cw=W/t.cols, ch=H/t.rows;
+  for(let i=0;i<cells.length;i++){ const cell=cells[i]; if(!cell) continue; const p=photoById(cell.photo_id); if(!p) continue;
+    let img; try{ img=await loadOrig(p); }catch(e){ continue; }
+    const col=i%t.cols, row=Math.floor(i/t.cols), x=col*cw, y=row*ch;
+    const r=cropRect(img.naturalWidth,img.naturalHeight,cw,ch,cell.z,cell.fx,cell.fy);
+    ctx.save(); ctx.beginPath(); ctx.rect(x,y,cw,ch); ctx.clip(); ctx.drawImage(img,r.sx,r.sy,r.sw,r.sh,x,y,cw,ch); ctx.restore(); }
+  return cv;
+}
+function canvasBlob(cv,type,q){ return new Promise((res,rej)=>cv.toBlob(b=>b?res(b):rej(new Error('render failed')),type,q)); }
+function dlBlob(name,blob){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1500); }
+function mzInheritTags(cells){ const s=new Set(); cells.filter(Boolean).forEach(c=>{ const p=photoById(c.photo_id); (p&&p.tags||[]).forEach(t=>s.add(t)); }); return [...s]; }
+async function mzDownload(){
+  const t=mz.template, msg=document.getElementById('mzMsg'); if(!t) return;
+  if(!mz.cells.some(Boolean)){ msg.innerHTML='<div class="err">Add at least one photo first.</div>'; return; }
+  msg.innerHTML='<div class="muted" style="font-size:13px">Rendering full-resolution PNG…</div>';
+  try{ const cv=await mzRenderRecipe(t,mz.cells,null); const blob=await canvasBlob(cv,'image/png');
+    dlBlob(`montage-${(document.getElementById('mzTitle').value||'advert').replace(/[^a-z0-9]+/gi,'-').toLowerCase()}.png`, blob); msg.innerHTML=''; showToast('PNG downloaded ✓');
+  }catch(err){ msg.innerHTML='<div class="err"><b>Couldn’t render:</b> '+esc(err.message||'image access')+'. If this persists it’s the image CORS setting on storage.</div>'; }
+}
+async function mzSave(){
+  const t=mz.template, msg=document.getElementById('mzMsg'); if(!t) return;
+  const used=mz.cells.filter(Boolean); if(!used.length){ msg.innerHTML='<div class="err">Add at least one photo first.</div>'; return; }
+  const c=client(); if(!c){ msg.innerHTML='<div class="err">No database connection.</div>'; return; }
+  msg.innerHTML='<div class="muted" style="font-size:13px">Saving…</div>';
+  try{
+    const cv=await mzRenderRecipe(t,mz.cells,600); const thumb=await canvasBlob(cv,'image/jpeg',0.85);
+    const id=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.floor(Math.random()*1e9);
+    const tpath=`comp/thumb/${id}.jpg`;
+    const up=await c.storage.from('photos').upload(tpath,thumb,{contentType:'image/jpeg',upsert:false}); if(up.error) throw up.error;
+    const cells=mz.cells.map(c2=>c2?{photo_id:c2.photo_id,z:c2.z,fx:c2.fx,fy:c2.fy,locked:!!c2.locked}:null);
+    const ins=await c.from('compositions').insert({ author:state.account, title:(document.getElementById('mzTitle').value||'').trim()||null,
+      template_id:t.id, cells, tags:mzInheritTags(mz.cells), thumb_path:tpath }).select().single();
+    if(ins.error) throw ins.error;
+    state.compositions.unshift(ins.data); msg.innerHTML='';
+    const fl=document.getElementById('mzFlash'); if(fl){ fl.classList.add('on'); setTimeout(()=>fl.classList.remove('on'),1400); }
+    renderCompositions(); showToast('Advert saved ✓');
+  }catch(err){ msg.innerHTML='<div class="err"><b>Couldn’t save:</b> '+esc(err.message||'failed')+'</div>'; }
+}
+function renderEditor(){
+  const box=document.getElementById('mzEditor'); if(!box) return;
+  if(!mz.template){ box.innerHTML='<div class="next-note">Pick a layout above to start building.</div>'; return; }
+  box.innerHTML=
+    `<div class="card">
+      <div class="mz-tools">
+        <button class="btn-sm" id="mzPickBtn">Add / swap photo</button>
+        <label class="mz-zoom">Zoom <input type="range" id="mzZoom" min="1" max="3" step="0.02" value="1"></label>
+        <button class="btn-sm" id="mzLock">Lock cell</button>
+        <button class="btn-sm" id="mzClearCell">Clear cell</button>
+        <button class="btn-sm" id="mzRemix">Remix unlocked</button>
+      </div>
+      <div class="mz-stagewrap"><canvas id="mzC" class="mz-canvas"></canvas></div>
+      <div class="muted" style="font-size:12px;margin-top:8px">Click a cell to select · drag to reposition · zoom to crop · a locked cell survives remix. Nothing distorts.</div>
+      <div id="mzPicker" class="mz-picker" style="display:none"></div>
+      <div class="dna-act" style="margin-top:14px;flex-wrap:wrap">
+        <input class="search" id="mzTitle" placeholder="Advert title (optional)" style="max-width:260px;flex:none">
+        <button class="btn btn-pri" id="mzSave" style="height:40px">Save advert</button>
+        <button class="btn-sm" id="mzDownload">⤓ Download PNG</button>
+        <span class="saveflash" id="mzFlash">saved ✓</span>
+      </div>
+      <div id="mzMsg" style="margin-top:8px"></div>
+    </div>`;
+  document.getElementById('mzPickBtn').onclick=()=>{ if(mz.sel<0) mz.sel=0; mzDraw(); mzOpenPicker(); };
+  document.getElementById('mzRemix').onclick=mzRemix;
+  document.getElementById('mzSave').onclick=mzSave;
+  document.getElementById('mzDownload').onclick=mzDownload;
+  document.getElementById('mzZoom').addEventListener('input',e=>{ if(mz.sel<0||!mz.cells[mz.sel]) return; mz.cells[mz.sel].z=parseFloat(e.target.value); mzDraw(); });
+  document.getElementById('mzLock').onclick=()=>{ if(mz.sel<0||!mz.cells[mz.sel]) return; mz.cells[mz.sel].locked=!mz.cells[mz.sel].locked; mzUpdateTools(); mzDraw(); };
+  document.getElementById('mzClearCell').onclick=()=>{ if(mz.sel<0) return; mz.cells[mz.sel]=null; mzUpdateTools(); mzDraw(); };
+  document.getElementById('mzPicker').addEventListener('click',e=>{ const t=e.target.closest('[data-pick]'); if(!t) return; mzAssign(mz.sel<0?0:mz.sel, t.dataset.pick); document.getElementById('mzPicker').style.display='none'; });
+  const cv=document.getElementById('mzC');
+  cv.addEventListener('pointerdown',e=>{ const i=mzCellFromEvent(e); if(i<0) return; mz.sel=i; mzUpdateTools();
+    const cell=mz.cells[i]; if(!cell){ mzDraw(); mzOpenPicker(); return; }
+    mz.drag={ x:e.clientX, y:e.clientY }; cv.setPointerCapture(e.pointerId); mzDraw(); });
+  cv.addEventListener('pointermove',e=>{ if(!mz.drag||mz.sel<0) return; const cell=mz.cells[mz.sel]; const p=photoById(cell.photo_id), rec=p&&mzThumb[p.id]; if(!rec||!rec.ready) return;
+    const rc=cv.getBoundingClientRect(); const cw=rc.width/mz.template.cols, ch=rc.height/mz.template.rows;
+    const iw=rec.img.naturalWidth, ih=rec.img.naturalHeight; const s0=Math.max(cw/iw,ch/ih), s=s0*cell.z;
+    const dx=e.clientX-mz.drag.x, dy=e.clientY-mz.drag.y; mz.drag={ x:e.clientX, y:e.clientY };
+    cell.fx=Math.max(0,Math.min(1, cell.fx - (dx/s)/iw)); cell.fy=Math.max(0,Math.min(1, cell.fy - (dy/s)/ih)); mzDraw(); });
+  const end=e=>{ if(mz.drag){ mz.drag=null; try{ cv.releasePointerCapture(e.pointerId); }catch(_){} } };
+  cv.addEventListener('pointerup',end); cv.addEventListener('pointercancel',end);
+  // preload any thumbs already placed
+  mz.cells.forEach(c2=>{ if(c2) mzLoadThumb(photoById(c2.photo_id)); });
+  mzUpdateTools(); mzDraw();
+}
+function compCard(co){
+  const t=state.templates.find(x=>x.id===co.template_id);
+  const tags=(co.tags||[]).slice(0,8).map(x=>`<span class="gdchip">${esc(x)}</span>`).join('');
+  return `<div class="card mz-g" data-cid="${esc(co.id)}" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+    <div class="ph-thumb" style="width:120px;height:120px"><img data-cpath="${esc(co.thumb_path||'')}" alt=""></div>
+    <div style="flex:1;min-width:220px">
+      <div style="font-family:'DM Serif Display',serif;font-size:17px;color:var(--ink-dark)">${esc(co.title||'Untitled advert')}</div>
+      <div class="muted" style="font-size:12px;margin:4px 0 8px">${t?esc(t.name):esc(co.template_id||'')} · ${supDate(co.created_at)}${co.author?' · '+esc(co.author):''}</div>
+      <div style="margin-bottom:10px">${tags||'<span class="muted">no tags</span>'}</div>
+      <div class="dna-act"><button class="btn-sm" data-cact="edit">Edit</button><button class="btn-sm" data-cact="download">⤓ PNG</button><button class="btn-sm" data-cact="delete">Delete</button></div>
+    </div>
+  </div>`;
+}
+function renderCompositions(){
+  const box=document.getElementById('mzGallery'); if(!box) return;
+  const q=(document.getElementById('mzSearch')&&document.getElementById('mzSearch').value||'').toLowerCase().trim();
+  let rows=state.compositions.slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+  if(q) rows=rows.filter(co=>((co.title||'')+' '+(co.tags||[]).join(' ')).toLowerCase().includes(q));
+  box.innerHTML=rows.length?rows.map(compCard).join(''):`<div class="next-note">${state.compositions.length?'No adverts match.':'No saved adverts yet — build one in the Build tab.'}</div>`;
+  (async()=>{ const c=client(); if(!c) return; const imgs=[...box.querySelectorAll('img[data-cpath]')].filter(i=>i.dataset.cpath);
+    const paths=[...new Set(imgs.map(i=>i.dataset.cpath))]; if(!paths.length) return;
+    const { data }=await c.storage.from('photos').createSignedUrls(paths,3600); const m={}; (data||[]).forEach(d=>{ if(d&&d.path&&d.signedUrl) m[d.path]=d.signedUrl; });
+    imgs.forEach(i=>{ if(m[i.dataset.cpath]) i.src=m[i.dataset.cpath]; }); })();
+}
+async function compAction(e){
+  const btn=e.target.closest('[data-cact]'); const cardEl=e.target.closest('[data-cid]'); if(!btn||!cardEl) return;
+  const co=state.compositions.find(x=>x.id===cardEl.dataset.cid); if(!co) return; const act=btn.dataset.cact;
+  if(act==='edit'){ const t=state.templates.find(x=>x.id===co.template_id); if(!t) return;
+    mz.template=t; mz.cells=(co.cells||[]).map(c2=>c2?Object.assign({},c2):null); while(mz.cells.length<t.cols*t.rows) mz.cells.push(null);
+    mz.sel=-1; mzView='build'; document.querySelectorAll('[data-mzv]').forEach(x=>x.classList.toggle('on',x.dataset.mzv==='build'));
+    document.getElementById('mzBuild').style.display=''; document.getElementById('mzSaved').style.display='none';
+    document.querySelectorAll('#mzTemplates .chip').forEach(x=>x.classList.toggle('on',x.dataset.tpl===t.id));
+    renderEditor(); showToast('Loaded into builder'); return; }
+  if(act==='download'){ const t=state.templates.find(x=>x.id===co.template_id); if(!t) return; showToast('Rendering…');
+    try{ const cv=await mzRenderRecipe(t,co.cells||[],null); const blob=await canvasBlob(cv,'image/png'); dlBlob(`montage-${(co.title||'advert').replace(/[^a-z0-9]+/gi,'-').toLowerCase()}.png`, blob); }
+    catch(err){ showToast('Render failed'); } return; }
+  if(act==='delete'){ const c=client(); if(!c) return;
+    try{ const {error}=await c.from('compositions').delete().eq('id',co.id); if(error) throw error;
+      if(co.thumb_path) c.storage.from('photos').remove([co.thumb_path]);
+      state.compositions=state.compositions.filter(x=>x.id!==co.id); renderCompositions(); showToast('Advert deleted'); }
+    catch(err){ showToast('Delete failed'); } return; }
+}
+function renderMontage(){
+  const tp=document.getElementById('mzTemplates');
+  if(tp){ tp.innerHTML=state.templates.map(t=>`<button class="chip mz-tpl${mz.template&&mz.template.id===t.id?' on':''}" data-tpl="${esc(t.id)}">${esc(t.name)} <span class="muted" style="font-size:10px">${t.cols}×${t.rows}</span></button>`).join('')
+      ||'<span class="muted">No templates.</span>'; }
+  renderEditor(); renderCompositions();
+}
+(function(){
+  document.querySelectorAll('[data-mzv]').forEach(b=>b.addEventListener('click',()=>{ mzView=b.dataset.mzv;
+    document.querySelectorAll('[data-mzv]').forEach(x=>x.classList.toggle('on',x===b));
+    document.getElementById('mzBuild').style.display=mzView==='build'?'':'none';
+    document.getElementById('mzSaved').style.display=mzView==='saved'?'':'none';
+    if(mzView==='build') mzDraw(); else renderCompositions(); }));
+  const tp=document.getElementById('mzTemplates');
+  if(tp) tp.addEventListener('click',e=>{ const b=e.target.closest('[data-tpl]'); if(!b) return; const t=state.templates.find(x=>x.id===b.dataset.tpl); if(!t) return;
+    mz.template=t; mz.cells=Array.from({length:t.cols*t.rows},()=>null); mz.sel=-1;
+    tp.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===b)); renderEditor(); });
+  const gal=document.getElementById('mzGallery'); if(gal) gal.addEventListener('click',compAction);
+  const se=document.getElementById('mzSearch'); if(se) se.addEventListener('input',renderCompositions);
 })();
 
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
