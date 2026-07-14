@@ -363,6 +363,21 @@
     <div class="section-label">Top reach — green tier</div>
     <div class="card"><table><thead><tr><th>Group</th><th>Area</th><th>Views</th><th>Impressions</th></tr></thead><tbody id="dashLeaders"></tbody></table></div>
 
+    <div class="section-label">Top adverts</div>
+    <div id="dashTopAdverts"></div>
+    <div class="acc" id="accPrevAdverts" style="margin-top:16px">
+      <div class="acc-h" data-acc><span class="t">Previous adverts</span><span class="c" id="prevAdvCount">—</span></div>
+      <div class="acc-b">
+        <div class="toolbar" style="margin-bottom:12px">
+          <span class="muted" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase">From</span>
+          <input type="date" class="search" id="advFrom" style="max-width:150px;flex:none">
+          <span class="muted" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase">To</span>
+          <input type="date" class="search" id="advTo" style="max-width:150px;flex:none">
+        </div>
+        <div id="prevAdvBody"></div>
+      </div>
+    </div>
+
     <div class="section-label">Your posts</div>
     <div class="acc" id="accSched">
       <div class="acc-h" data-acc><span class="t">Planned adverts</span><span class="c" id="schedCount">—</span></div>
@@ -820,6 +835,30 @@ function renderDash(){
   document.getElementById('dashLeaders').innerHTML=leaders.map(x=>
     `<tr><td class="nm">${esc(x.name)}</td><td class="muted">${esc(x.area||'')}</td><td class="num">${num(x.fb_views)}</td><td class="num">${num(x.fb_impressions)}</td></tr>`
   ).join('')||'<tr><td colspan="4" class="muted">No measured green groups yet.</td></tr>';
+  renderAdShowcase();
+}
+function renderAdShowcase(){
+  const top=document.getElementById('dashTopAdverts');
+  if(top){
+    const ranked=state.compositions.slice().sort((a,b)=>((b.use_count||0)-(a.use_count||0))||String(b.created_at||'').localeCompare(String(a.created_at||''))).slice(0,3);
+    let tiles='';
+    for(let i=0;i<3;i++){ const co=ranked[i];
+      tiles+=co?`<div class="adv-tile" data-advid="${esc(co.id)}"><img class="adv-tile-img" data-spath="${esc(co.thumb_path||'')}" alt=""><div class="adv-tile-b"><div class="nm" style="font-weight:600;font-size:13px">${esc(co.title||'Untitled advert')}</div><div class="muted" style="font-size:11px">${co.use_count?co.use_count+' post'+(co.use_count===1?'':'s'):'not posted yet'}</div></div></div>`
+        :`<div class="adv-tile" style="cursor:default"><div class="adv-tile-img" style="display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:12px">advert slot ${i+1}</div><div class="adv-tile-b"><div class="muted" style="font-size:12px">Fills in as you build &amp; post adverts</div></div></div>`;
+    }
+    top.innerHTML=`<div class="adv-grid" style="grid-template-columns:repeat(3,1fr)">${tiles}</div>`;
+    signSchedThumbs(top);
+  }
+  const body=document.getElementById('prevAdvBody');
+  if(body){
+    const from=(document.getElementById('advFrom')||{}).value||'', to=(document.getElementById('advTo')||{}).value||'';
+    const rows=state.compositions.slice().filter(co=>{ const d=String(co.created_at||'').slice(0,10); return (!from||d>=from)&&(!to||d<=to); }).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+    const cc=document.getElementById('prevAdvCount'); if(cc) cc.textContent=rows.length;
+    body.innerHTML=`<div class="card" style="padding:0;overflow-x:auto"><table><thead><tr><th></th><th>Advert</th><th>Created</th><th>Posts</th><th>Tags</th></tr></thead><tbody>${
+      rows.length?rows.map(co=>`<tr class="rowlink" data-advid="${esc(co.id)}"><td><div class="ph-thumb" style="width:58px;height:44px"><img data-spath="${esc(co.thumb_path||'')}" alt=""></div></td><td class="nm">${esc(co.title||'Untitled advert')}</td><td class="num">${supDate(co.created_at)}</td><td class="num">${co.use_count||0}</td><td class="muted">${(co.tags||[]).slice(0,4).map(esc).join(', ')}</td></tr>`).join('')
+        :'<tr><td colspan="5" class="muted">No adverts in this range — build some in Montage.</td></tr>'}</tbody></table></div>`;
+    signSchedThumbs(body);
+  }
 }
 
 /* ---- groups ---- */
@@ -2093,9 +2132,11 @@ function closePlanned(){ document.getElementById('pvDrawer').classList.remove('o
     const h=e.target.closest('[data-acc]'); if(h){ h.parentElement.classList.toggle('open'); return; }
     const sv=e.target.closest('[data-schedview]'); if(sv){ schedView=sv.dataset.schedview; dash.querySelectorAll('[data-schedview]').forEach(x=>x.classList.toggle('on',x===sv)); renderSched(); return; }
     const pvw=e.target.closest('[data-planview]'); if(pvw){ openPlanned(pvw.dataset.planview); return; }
+    const av=e.target.closest('[data-advid]'); if(av){ const co=state.compositions.find(x=>x.id===av.dataset.advid); if(co&&co.thumb_path) openAdvertLightbox(co); return; }
     const un=e.target.closest('[data-unsched]'); if(un){ removeSchedule(un.dataset.unsched); return; } });
   const per=document.getElementById('createdPeriod'); if(per) per.addEventListener('change',()=>{ const cs=document.getElementById('createdCustom'); if(cs) cs.style.display=per.value==='custom'?'inline-flex':'none'; renderCreated(); });
   ['cFrom','cTo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('change',renderCreated); });
+  ['advFrom','advTo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('change',renderAdShowcase); });
   const pvc=document.getElementById('pvClose'), pvv=document.getElementById('pvVeil'); if(pvc) pvc.addEventListener('click',closePlanned); if(pvv) pvv.addEventListener('click',closePlanned);
   const pvBody=document.getElementById('pvBody'); if(pvBody) pvBody.addEventListener('click',e=>{ const b=e.target.closest('[data-pv]'); if(!b) return; if(b.dataset.pv==='run'){ closePlanned(); showTab('Run'); } else if(b.dataset.pv==='remove'){ removeSchedule(b.dataset.id); closePlanned(); } });
 })();
