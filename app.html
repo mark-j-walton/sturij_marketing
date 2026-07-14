@@ -332,6 +332,42 @@
     <div class="card"><table><thead><tr><th>Date</th><th>Account</th><th>Severity</th><th>Likely trigger</th><th>Appeal</th></tr></thead><tbody id="safBody"></tbody></table></div>
   </section>
 
+  <!-- SUPPORT -->
+  <section class="panel" data-panel="Support">
+    <span class="kicker">Feedback &amp; bugs</span>
+    <h1>Support</h1>
+    <p class="sub">Raise a bug, a bit of feedback, a feature idea or a backlog note — so nothing's lost in chat. Private to the approved Sturij accounts.</p>
+
+    <div class="card" style="margin-bottom:22px">
+      <div class="section-label" style="margin:0 0 12px">New ticket</div>
+      <div class="toolbar" id="supKind" style="margin-bottom:12px">
+        <button class="chip on" data-newkind="bug">Bug</button>
+        <button class="chip" data-newkind="feedback">Feedback</button>
+        <button class="chip" data-newkind="feature">Feature</button>
+        <button class="chip" data-newkind="backlog">Backlog</button>
+      </div>
+      <input class="search" id="supTitle" placeholder="Short title — what's the gist?" maxlength="140" style="width:100%;flex:none;margin-bottom:10px">
+      <textarea class="dna-t" id="supDetail" placeholder="Detail — steps, what you expected, what happened, or the idea in full."></textarea>
+      <div class="dna-act" style="margin-top:12px"><button class="btn btn-pri" id="supAdd" style="height:40px">Raise ticket</button><span class="saveflash" id="supFlash">saved ✓</span></div>
+      <div id="supAddMsg" style="margin-top:10px"></div>
+    </div>
+
+    <div class="toolbar" id="supFilters">
+      <span class="muted" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase">Status</span>
+      <button class="chip on" data-fstatus="all">All</button>
+      <button class="chip" data-fstatus="open">Open</button>
+      <button class="chip" data-fstatus="in_progress">In progress</button>
+      <button class="chip" data-fstatus="closed">Closed</button>
+      <span class="muted" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-left:6px">Kind</span>
+      <button class="chip on" data-fkind="all">All</button>
+      <button class="chip" data-fkind="bug">Bug</button>
+      <button class="chip" data-fkind="feedback">Feedback</button>
+      <button class="chip" data-fkind="feature">Feature</button>
+      <button class="chip" data-fkind="backlog">Backlog</button>
+    </div>
+    <div id="supBody"></div>
+  </section>
+
 </div></main>
 
 <!-- ============ GROUP DETAIL DRAWER ============ -->
@@ -353,7 +389,7 @@ function client(){ if(!sb && window.supabase) sb = window.supabase.createClient(
 
 const CAP = 12;                       // DESIGN + spec: 12 posts/day
 const TODAY = new Date().toISOString().slice(0,10);
-const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[] };
+const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[], support:[] };
 
 const TABS = [
   ['Dashboard','<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></svg>'],
@@ -362,6 +398,7 @@ const TABS = [
   ['Post','<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>'],
   ['DNA','<svg viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22.5v-18z"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/></svg>'],
   ['Safety','<svg viewBox="0 0 24 24"><path d="M12 3l8 3.5v5c0 5-3.4 8.7-8 9.5-4.6-.8-8-4.5-8-9.5v-5L12 3z"/></svg>'],
+  ['Support','<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4"/><path d="M5 5l4.1 4.1M14.9 14.9L19 19M19 5l-4.1 4.1M9.1 14.9L5 19"/></svg>'],
 ];
 
 /* ---- rail ---- */
@@ -440,14 +477,15 @@ async function loadAll(){
   const c = client();
   if(!c){ document.getElementById('dashStats').innerHTML='<div class="loading">Couldn’t load the data library — check your connection and reload.</div>'; return; }
   try{
-    const [g,p,r,d] = await Promise.all([
+    const [g,p,r,d,s] = await Promise.all([
       c.from('groups').select('*'),
       c.from('posting_log').select('*'),
       c.from('restrictions').select('*'),
       c.from('dna').select('*'),
+      c.from('support_tickets').select('*'),
     ]);
-    state.groups = g.data||[]; state.posts = p.data||[]; state.restrictions = r.data||[]; state.dna = d.data||[];
-    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPost(); renderDNA();
+    state.groups = g.data||[]; state.posts = p.data||[]; state.restrictions = r.data||[]; state.dna = d.data||[]; state.support = s.data||[];
+    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPost(); renderDNA(); renderSupport();
   }catch(e){
     document.getElementById('dashStats').innerHTML=
       '<div class="err" style="grid-column:1/-1"><b>Couldn’t reach the database.</b> Check your connection, then <button onclick="loadAll()">retry</button>.</div>';
@@ -724,6 +762,92 @@ document.getElementById('dnaDownAll').addEventListener('click',()=>{
     return `## ${c}\n\n`+items.map(mdFor).join('\n'); }).filter(Boolean).join('\n---\n\n');
   downloadFile('sturij-dna.md', `# Sturij DNA\n\n${all}`);
 });
+
+/* ---- Support (tickets) ---- */
+let supNewKind='bug';
+const supFilter={status:'all',kind:'all'};
+const KIND_CLS={bug:'red',feedback:'amber',feature:'green',backlog:''};
+const ST_LABEL={open:'Open',in_progress:'In progress',closed:'Closed'};
+function supDate(s){ if(!s) return ''; try{ return new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); }catch(e){ return ''; } }
+function supCard(t){
+  const kc=KIND_CLS[t.kind]||'';
+  return `<div class="card sup-t" data-id="${esc(t.id)}" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span class="tchip ${kc}">${esc(t.kind)}</span>
+      <span class="gdchip">${ST_LABEL[t.status]||esc(t.status)}</span>
+      <span class="muted" style="margin-left:auto;font-size:12px">${supDate(t.created_at)}${t.reporter?' · '+esc(t.reporter):''}</span>
+    </div>
+    <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--ink-dark);margin:10px 0 4px">${esc(t.title)}</div>
+    ${t.detail?`<div class="vtext" style="white-space:pre-wrap">${esc(t.detail)}</div>`:''}
+    ${t.status==='closed'&&t.resolution?`<div class="field" style="margin-top:12px;margin-bottom:0"><div class="k">Resolution</div><div class="v">${esc(t.resolution)}</div></div>`:''}
+    <div class="dna-act" style="margin-top:12px">
+      ${t.status==='open'?`<button class="btn-sm" data-act="start">Start</button>`:''}
+      ${t.status!=='closed'?`<button class="btn-sm" data-act="closeform">Close…</button>`:`<button class="btn-sm" data-act="reopen">Reopen</button>`}
+    </div>
+    <div class="sup-close" style="display:none;margin-top:12px">
+      <textarea class="dna-t" data-res placeholder="Short plain-English note: what was done or decided. This reads as the changelog."></textarea>
+      <div class="dna-act" style="margin-top:8px"><button class="btn-sm btn-post" data-act="close">Close ticket</button><button class="btn-sm" data-act="cancelclose">Cancel</button></div>
+    </div>
+  </div>`;
+}
+function renderSupport(){
+  const box=document.getElementById('supBody'); if(!box) return;
+  let rows=state.support.slice();
+  if(supFilter.status!=='all') rows=rows.filter(t=>t.status===supFilter.status);
+  if(supFilter.kind!=='all') rows=rows.filter(t=>t.kind===supFilter.kind);
+  rows.sort((a,b)=>((a.status==='closed')-(b.status==='closed'))||String(b.created_at).localeCompare(String(a.created_at)));
+  const open=state.support.filter(t=>t.status!=='closed').length, tot=state.support.length;
+  box.innerHTML=
+    `<div class="banner ${open?'warn':'ok'}"><span class="big">${open}</span><span>${open?`open ticket${open===1?'':'s'} · ${tot} total`:(tot?`nothing open — all ${tot} tickets closed`:'no tickets yet — raise the first one above')}.</span></div>`
+    +(rows.length?rows.map(supCard).join(''):'<div class="next-note">No tickets match this filter.</div>');
+}
+async function addTicket(){
+  const ti=document.getElementById('supTitle'), de=document.getElementById('supDetail'), msg=document.getElementById('supAddMsg');
+  const title=(ti.value||'').trim(), detail=(de.value||'').trim();
+  if(!title){ msg.innerHTML='<div class="err">Give it a short title first.</div>'; return; }
+  const c=client(); if(!c){ msg.innerHTML='<div class="err">No database connection.</div>'; return; }
+  try{
+    const { data, error }=await c.from('support_tickets').insert({ kind:supNewKind, title, detail:detail||null, status:'open', reporter:state.account }).select().single();
+    if(error) throw error;
+    state.support.unshift(data);
+    ti.value=''; de.value=''; msg.innerHTML='';
+    const fl=document.getElementById('supFlash'); if(fl){ fl.classList.add('on'); setTimeout(()=>fl.classList.remove('on'),1400); }
+    renderSupport(); showToast('Ticket raised ✓');
+  }catch(err){ msg.innerHTML='<div class="err"><b>Couldn’t save it:</b> '+esc(err.message||'insert failed')+'</div>'; }
+}
+async function setTicket(t, patch){
+  const c=client(); if(!c) return;
+  const upd=Object.assign({}, patch, { updated_at:new Date().toISOString() });
+  try{
+    const { error }=await c.from('support_tickets').update(upd).eq('id',t.id); if(error) throw error;
+    Object.assign(t,upd); renderSupport();
+    showToast(patch.status==='closed'?'Ticket closed ✓':patch.status==='in_progress'?'Marked in progress':'Ticket reopened');
+  }catch(err){ showToast('Update failed'); }
+}
+function supAction(e){
+  const btn=e.target.closest('[data-act]'); if(!btn) return;
+  const cardEl=btn.closest('.sup-t'); if(!cardEl) return;
+  const t=state.support.find(x=>x.id===cardEl.dataset.id); if(!t) return;
+  const act=btn.dataset.act;
+  if(act==='closeform'){ const cf=cardEl.querySelector('.sup-close'); if(cf) cf.style.display='block'; return; }
+  if(act==='cancelclose'){ const cf=cardEl.querySelector('.sup-close'); if(cf) cf.style.display='none'; return; }
+  if(act==='start') return setTicket(t,{status:'in_progress'});
+  if(act==='reopen') return setTicket(t,{status:'open',closed_at:null,resolution:null});
+  if(act==='close'){ const res=(cardEl.querySelector('[data-res]').value||'').trim();
+    return setTicket(t,{status:'closed',resolution:res||null,closed_at:new Date().toISOString()}); }
+}
+(function(){
+  const kindBar=document.getElementById('supKind');
+  if(kindBar) kindBar.addEventListener('click',e=>{ const b=e.target.closest('[data-newkind]'); if(!b) return;
+    supNewKind=b.dataset.newkind; kindBar.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===b)); });
+  const filt=document.getElementById('supFilters');
+  if(filt) filt.addEventListener('click',e=>{ const b=e.target.closest('[data-fstatus],[data-fkind]'); if(!b) return;
+    if(b.dataset.fstatus!=null){ supFilter.status=b.dataset.fstatus; filt.querySelectorAll('[data-fstatus]').forEach(x=>x.classList.toggle('on',x===b)); }
+    else { supFilter.kind=b.dataset.fkind; filt.querySelectorAll('[data-fkind]').forEach(x=>x.classList.toggle('on',x===b)); }
+    renderSupport(); });
+  const addBtn=document.getElementById('supAdd'); if(addBtn) addBtn.addEventListener('click',addTicket);
+  const body=document.getElementById('supBody'); if(body) body.addEventListener('click',supAction);
+})();
 
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 </script>
