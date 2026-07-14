@@ -247,6 +247,20 @@
   .gpill.neutral{background:rgba(35,31,27,.06);color:var(--ink-muted)}
   :root[data-theme="dark"] .gpill.neutral{background:rgba(240,237,230,.06)}
   .gacc-b{display:none;padding:4px 16px 14px} .gacc.open .gacc-b{display:block}
+  /* advert tiles + lightbox (shared: Photos>Adverts, dashboard showcase) */
+  .adv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
+  .adv-tile{border-radius:12px;overflow:hidden;cursor:pointer;background:var(--card);border:1px solid var(--line-soft);box-shadow:var(--shadow-card);transition:transform .12s,box-shadow .12s}
+  .adv-tile:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(35,31,27,.14)}
+  .adv-tile-img{width:100%;aspect-ratio:1;background:rgba(35,31,27,.06);display:block;object-fit:cover}
+  :root[data-theme="dark"] .adv-tile-img{background:rgba(240,237,230,.06)}
+  .adv-tile-b{padding:10px 12px}
+  .lbx{position:fixed;inset:0;background:rgba(14,24,32,.55);backdrop-filter:blur(11px);-webkit-backdrop-filter:blur(11px);display:none;align-items:center;justify-content:center;padding:28px;z-index:400}
+  .lbx.on{display:flex;animation:fade .2s cubic-bezier(.2,.7,.3,1)}
+  .lbx-card{background:var(--card);border-radius:16px;max-width:min(640px,94vw);max-height:90vh;overflow:auto;box-shadow:0 24px 80px rgba(0,0,0,.45)}
+  .lbx-img{width:100%;display:block;background:#0e1820}
+  .lbx-meta{padding:16px 20px}
+  .lbx-x{position:fixed;top:20px;right:24px;width:42px;height:42px;border-radius:999px;border:1px solid rgba(250,248,242,.32);background:rgba(0,0,0,.32);color:#fff;font-size:17px;cursor:pointer;z-index:401}
+  .lbx-x:hover{background:rgba(0,0,0,.5)}
   /* designed audit item (flat, inside a region/town group) */
   .ag-item{border-top:1px solid var(--line-soft);padding:16px 2px}
   .ag-item:first-child{border-top:none}
@@ -524,24 +538,39 @@
     <h1>Photos</h1>
     <p class="sub">Your real project photos — <b>private</b> to the approved Sturij accounts, never public. Upload, tag, and <b>clear each photo for public use by hand</b> before it can go anywhere. Nothing is cleared automatically.</p>
 
-    <div class="card" style="margin-bottom:22px">
-      <div class="section-label" style="margin:0 0 12px">Add photos</div>
-      <input type="file" id="phFile" accept="image/jpeg,image/png,image/webp" multiple style="display:none">
-      <div class="toolbar" style="margin-bottom:6px">
-        <input class="search" id="phTags" placeholder="Tags (comma-separated) — at least one, e.g. wardrobe, oak, bedroom">
-        <button class="btn-sm" id="phPick">Choose images…</button>
-      </div>
-      <div class="muted" style="font-size:12px">JPG / PNG / WebP · up to 15&nbsp;MB each. Tags are required — they're how you'll find it later. A thumbnail is made in your browser; the original is stored privately.</div>
-      <div id="phUpMsg" style="margin-top:10px"></div>
+    <div class="toolbar">
+      <button class="chip on" data-phmode="photos">Photos</button>
+      <button class="chip" data-phmode="adverts">Adverts</button>
     </div>
 
-    <div class="toolbar">
-      <input class="search" id="phSearch" placeholder="Search photos by tag or description…">
-      <button class="chip on" data-phv="recent">Recent &amp; most-used</button>
-      <button class="chip" data-phv="uncleared">Needs clearing</button>
-      <button class="chip" data-phv="cleared">Cleared</button>
+    <div id="phPhotos">
+      <div class="card" style="margin:14px 0 22px">
+        <div class="section-label" style="margin:0 0 12px">Add photos</div>
+        <input type="file" id="phFile" accept="image/jpeg,image/png,image/webp" multiple style="display:none">
+        <div class="toolbar" style="margin-bottom:6px">
+          <input class="search" id="phTags" placeholder="Tags (comma-separated) — at least one, e.g. wardrobe, oak, bedroom">
+          <button class="btn-sm" id="phPick">Choose images…</button>
+        </div>
+        <div class="muted" style="font-size:12px">JPG / PNG / WebP · up to 15&nbsp;MB each. Tags are required — they're how you'll find it later. A thumbnail is made in your browser; the original is stored privately.</div>
+        <div id="phUpMsg" style="margin-top:10px"></div>
+      </div>
+
+      <div class="toolbar">
+        <input class="search" id="phSearch" placeholder="Search photos by tag or description…">
+        <button class="chip on" data-phv="recent">Recent &amp; most-used</button>
+        <button class="chip" data-phv="bytag">By tag</button>
+        <button class="chip" data-phv="uncleared">Needs clearing</button>
+        <button class="chip" data-phv="cleared">Cleared</button>
+      </div>
+      <div id="phBody"></div>
     </div>
-    <div id="phBody"></div>
+
+    <div id="phAdverts" style="display:none">
+      <div class="toolbar" style="margin:14px 0 0">
+        <input class="search" id="phAdvSearch" placeholder="Search saved adverts by title or tag…">
+      </div>
+      <div id="phAdvBody"></div>
+    </div>
   </section>
 
   <!-- MONTAGE -->
@@ -580,6 +609,9 @@
   </div>
   <div class="drawer-body" id="gdBody"></div>
 </aside>
+
+<!-- ADVERT LIGHTBOX (blurred backdrop) -->
+<div class="lbx" id="lbx"><button class="lbx-x" id="lbxX" aria-label="Close">✕</button><div class="lbx-card" id="lbxCard"></div></div>
 
 <script>
 /* ============ Supabase client — reused verbatim from group_ledger.html ============ */
@@ -1162,10 +1194,25 @@ function photoCard(p){
     </div>
   </div>`;
 }
+function photoGaccHead(name, count, uncleared){
+  return `<div class="gacc-h"><svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+    <span class="gacc-name">${esc(name)}</span>
+    <span class="gacc-stat"><span class="gpill neutral">${count}</span>${uncleared?`<span class="gpill red"><span class="dot red"></span>${uncleared}</span>`:''}</span></div>`;
+}
 function renderPhotos(){
   const box=document.getElementById('phBody'); if(!box) return;
   const q=(document.getElementById('phSearch').value||'').toLowerCase().trim();
   const list=state.photos.slice();
+  const unc=list.filter(p=>!p.cleared_for_public).length;
+  const banner=`<div class="banner ${unc?'warn':'ok'}"><span class="big">${list.length}</span><span>photo${list.length===1?'':'s'} in the library${unc?` · <b>${unc}</b> still need clearing`:(list.length?' · all cleared':'')}.</span></div>`;
+  if(!q && phView==='bytag'){
+    const byTag={}; list.forEach(p=>{ const ts=(p.tags&&p.tags.length)?p.tags:['untagged']; ts.forEach(t=>{ (byTag[t]=byTag[t]||[]).push(p); }); });
+    const keys=Object.keys(byTag).sort((a,b)=>byTag[b].length-byTag[a].length);
+    box.innerHTML=banner+(keys.length?keys.map(k=>{ const ps=byTag[k], un=ps.filter(p=>!p.cleared_for_public).length;
+      return `<div class="gacc">${photoGaccHead(k,ps.length,un)}<div class="gacc-b">${ps.map(photoCard).join('')}</div></div>`;
+    }).join(''):'<div class="next-note">No photos yet — add your first above.</div>');
+    signThumbs(); return;
+  }
   let items;
   if(q){
     items=list.map(p=>{ const hay=((p.tags||[]).join(' ')+' '+(p.description||'')).toLowerCase();
@@ -1179,9 +1226,7 @@ function renderPhotos(){
     const seen=new Set(); items=[]; [...byDate,...byUse].forEach(p=>{ if(!seen.has(p.id)){ seen.add(p.id); items.push(p); } });
   }
   if(!q) items=items.slice().sort((a,b)=>((a.description?1:0)-(b.description?1:0)));   // missing-description floats top
-  const unc=list.filter(p=>!p.cleared_for_public).length;
-  box.innerHTML=
-    `<div class="banner ${unc?'warn':'ok'}"><span class="big">${list.length}</span><span>photo${list.length===1?'':'s'} in the library${unc?` · <b>${unc}</b> still need clearing`:(list.length?' · all cleared':'')}.</span></div>`
+  box.innerHTML=banner
     +(items.length?items.map(photoCard).join(''):`<div class="next-note">${list.length?'No photos match.':'No photos yet — add your first above.'}</div>`);
   signThumbs();
 }
@@ -1193,6 +1238,7 @@ async function setPhoto(p,patch,toast){
   catch(err){ showToast('Update failed'); }
 }
 function phAction(e){
+  const gh=e.target.closest('.gacc-h'); if(gh){ gh.parentElement.classList.toggle('open'); return; }
   const cardEl=e.target.closest('.ph-c'); if(!cardEl) return;
   const p=state.photos.find(x=>x.id===cardEl.dataset.id); if(!p) return;
   const chk=e.target.closest('[data-chk]');
@@ -1211,6 +1257,45 @@ function phAction(e){
   document.querySelectorAll('[data-phv]').forEach(b=>b.addEventListener('click',()=>{ phView=b.dataset.phv;
     document.querySelectorAll('[data-phv]').forEach(x=>x.classList.toggle('on',x===b)); const se=document.getElementById('phSearch'); if(se) se.value=''; renderPhotos(); }));
   const body=document.getElementById('phBody'); if(body){ body.addEventListener('click',phAction); body.addEventListener('change',phAction); }
+})();
+
+/* ---- Photos ⇄ Adverts switch + advert lightbox (reused by the dashboard showcase) ---- */
+function renderAdverts(){
+  const box=document.getElementById('phAdvBody'); if(!box) return;
+  const el=document.getElementById('phAdvSearch'); const q=(el&&el.value||'').toLowerCase().trim();
+  let rows=state.compositions.slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  if(q) rows=rows.filter(co=>((co.title||'')+' '+(co.tags||[]).join(' ')).toLowerCase().includes(q));
+  box.innerHTML=rows.length
+    ? `<div class="adv-grid" style="margin-top:14px">${rows.map(co=>`<div class="adv-tile" data-advid="${esc(co.id)}">
+         <img class="adv-tile-img" data-spath="${esc(co.thumb_path||'')}" alt="">
+         <div class="adv-tile-b"><div class="nm" style="font-weight:600;font-size:13px">${esc(co.title||'Untitled advert')}</div>
+           <div class="muted" style="font-size:11px">${supDate(co.created_at)}</div></div></div>`).join('')}</div>`
+    : `<div class="next-note" style="margin-top:14px">${state.compositions.length?'No adverts match.':'No saved adverts yet — build one in the Montage tab.'}</div>`;
+  signSchedThumbs(box);
+}
+function openAdvertLightbox(co){
+  const card=document.getElementById('lbxCard'); if(!card||!co) return;
+  card.innerHTML=`<img class="lbx-img" data-spath="${esc(co.thumb_path||'')}" alt="">
+    <div class="lbx-meta"><div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--ink-dark)">${esc(co.title||'Untitled advert')}</div>
+      <div class="muted" style="font-size:12px;margin:4px 0 10px">${supDate(co.created_at)}${co.author?' · '+esc(co.author):''}</div>
+      <div>${(co.tags||[]).map(t=>`<span class="gdchip">${esc(t)}</span>`).join('')||'<span class="muted">no tags</span>'}</div></div>`;
+  signSchedThumbs(card);
+  document.getElementById('lbx').classList.add('on');
+}
+function closeLbx(){ const l=document.getElementById('lbx'); if(l) l.classList.remove('on'); }
+(function(){
+  document.querySelectorAll('[data-phmode]').forEach(b=>b.addEventListener('click',()=>{
+    const mode=b.dataset.phmode; document.querySelectorAll('[data-phmode]').forEach(x=>x.classList.toggle('on',x===b));
+    document.getElementById('phPhotos').style.display=mode==='photos'?'':'none';
+    document.getElementById('phAdverts').style.display=mode==='adverts'?'':'none';
+    if(mode==='adverts') renderAdverts();
+  }));
+  const as=document.getElementById('phAdvSearch'); if(as) as.addEventListener('input',renderAdverts);
+  const ab=document.getElementById('phAdvBody'); if(ab) ab.addEventListener('click',e=>{ const t=e.target.closest('[data-advid]'); if(!t) return; const co=state.compositions.find(x=>x.id===t.dataset.advid); if(co) openAdvertLightbox(co); });
+  const lx=document.getElementById('lbxX'), lb=document.getElementById('lbx');
+  if(lx) lx.addEventListener('click',closeLbx);
+  if(lb) lb.addEventListener('click',e=>{ if(e.target===lb) closeLbx(); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeLbx(); });
 })();
 
 /* ---- Montage builder (compose cleared photos -> adverts) ---- */
