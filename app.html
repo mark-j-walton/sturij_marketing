@@ -508,6 +508,34 @@
     <div class="card"><table><thead><tr><th>Date</th><th>Account</th><th>Severity</th><th>Likely trigger</th><th>Appeal</th></tr></thead><tbody id="safBody"></tbody></table></div>
   </section>
 
+  <!-- THEMES -->
+  <section class="panel" data-panel="Themes">
+    <span class="kicker">Content themes</span>
+    <h1>Themes</h1>
+    <p class="sub">Categorised themes that point the AI in the right direction — e.g. <b>Media Wall → New Media Wall</b> with a short description. Pick one when you draft (Post &amp; Run) and the copy stays on-theme. Try a theme on a saved advert below.</p>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="section-label" style="margin:0 0 10px" id="thFormTitle">New theme</div>
+      <div class="toolbar" style="margin-bottom:8px">
+        <input class="search" id="thCat" placeholder="Category (e.g. Media Wall)" style="max-width:240px">
+        <input class="search" id="thSub" placeholder="Sub-category (e.g. New Media Wall)" style="max-width:240px">
+      </div>
+      <textarea class="dna-t" id="thDesc" placeholder="Short description — what this theme is about, to steer the AI."></textarea>
+      <div class="dna-act" style="margin-top:10px"><button class="btn btn-pri" id="thSave" style="height:40px">Add theme</button><button class="btn-sm" id="thCancel" style="display:none">Cancel edit</button><span class="saveflash" id="thFlash">saved ✓</span></div>
+    </div>
+    <div id="thBody"></div>
+
+    <div class="section-label">Try a theme on an advert</div>
+    <div class="card">
+      <div class="toolbar" style="margin-bottom:10px">
+        <select class="search" id="thTryComp" style="max-width:260px;flex:none"></select>
+        <select class="search" id="thTryTheme" style="max-width:240px;flex:none"></select>
+        <button class="btn-sm" id="thTryGo">Draft with AI</button>
+      </div>
+      <div id="thTryBody"></div>
+    </div>
+  </section>
+
   <!-- SUPPORT -->
   <section class="panel" data-panel="Support">
     <span class="kicker">Feedback &amp; bugs</span>
@@ -634,7 +662,7 @@ function client(){ if(!sb && window.supabase) sb = window.supabase.createClient(
 
 const CAP = 12;                       // DESIGN + spec: 12 posts/day
 const TODAY = new Date().toISOString().slice(0,10);
-const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[], support:[], photos:[], templates:[], compositions:[], scheduled:[] };
+const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[], support:[], photos:[], templates:[], compositions:[], scheduled:[], themes:[] };
 
 const TABS = [
   ['Dashboard','<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></svg>'],
@@ -647,6 +675,7 @@ const TABS = [
   ['Safety','<svg viewBox="0 0 24 24"><path d="M12 3l8 3.5v5c0 5-3.4 8.7-8 9.5-4.6-.8-8-4.5-8-9.5v-5L12 3z"/></svg>'],
   ['Photos','<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M21 16l-5-5-6 6-3-3-4 4"/></svg>'],
   ['Montage','<svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.4"/><rect x="13" y="3" width="8" height="8" rx="1.4"/><rect x="3" y="13" width="8" height="8" rx="1.4"/><rect x="13" y="13" width="8" height="8" rx="1.4"/></svg>'],
+  ['Themes','<svg viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0l-7-7A2 2 0 0 1 3 12.2V4a2 2 0 0 1 2-2h8.2a2 2 0 0 1 1.4.6l7 7a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>'],
   ['Support','<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4"/><path d="M5 5l4.1 4.1M14.9 14.9L19 19M19 5l-4.1 4.1M9.1 14.9L5 19"/></svg>'],
 ];
 
@@ -729,7 +758,7 @@ async function loadAll(){
   const c = client();
   if(!c){ document.getElementById('dashStats').innerHTML='<div class="loading">Couldn’t load the data library — check your connection and reload.</div>'; return; }
   try{
-    const [g,p,r,d,s,ph,tm,co,sp] = await Promise.all([
+    const [g,p,r,d,s,ph,tm,co,sp,th] = await Promise.all([
       c.from('groups').select('*'),
       c.from('posting_log').select('*'),
       c.from('restrictions').select('*'),
@@ -739,10 +768,11 @@ async function loadAll(){
       c.from('templates').select('*'),
       c.from('compositions').select('*'),
       c.from('scheduled_posts').select('*'),
+      c.from('themes').select('*'),
     ]);
     state.groups = g.data||[]; state.posts = p.data||[]; state.restrictions = r.data||[]; state.dna = d.data||[]; state.support = s.data||[]; state.photos = ph.data||[];
-    state.templates = (tm.data||[]).sort((a,b)=>a.sort-b.sort); state.compositions = co.data||[]; state.scheduled = sp.data||[];
-    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPostBrowser(); renderPostCockpit(); renderDNA(); renderSupport(); renderPhotos(); renderMontage(); renderAudit(); renderRun(); renderSchedules();
+    state.templates = (tm.data||[]).sort((a,b)=>a.sort-b.sort); state.compositions = co.data||[]; state.scheduled = sp.data||[]; state.themes = (th.data||[]).sort((a,b)=>a.sort-b.sort||String(a.category).localeCompare(String(b.category)));
+    renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPostBrowser(); renderPostCockpit(); renderDNA(); renderSupport(); renderPhotos(); renderMontage(); renderAudit(); renderRun(); renderSchedules(); renderThemes();
   }catch(e){
     document.getElementById('dashStats').innerHTML=
       '<div class="err" style="grid-column:1/-1"><b>Couldn’t reach the database.</b> Check your connection, then <button onclick="loadAll()">retry</button>.</div>';
@@ -967,7 +997,11 @@ function nextSafeGroup(excludeId){ const o={green:0,amber:1,red:2}; return state
 function showToast(t){ let el=document.getElementById('toast'); if(!el){ el=document.createElement('div'); el.id='toast'; el.className='toast'; document.body.appendChild(el); } el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2600); }
 
 /* ---- Post cockpit v2 (composer at top: AI drafts w/ tone+image-vision, A/B two images) ---- */
-const post={ group:null, drafts:[], locked:[], mode:'post', selCopy:[], images:[null,null], loading:false, picking:-1 };
+const post={ group:null, drafts:[], locked:[], mode:'post', selCopy:[], images:[null,null], loading:false, picking:-1, themeId:'' };
+function themeById(id){ return state.themes.find(t=>t.id===id); }
+function themeLabel(t){ return [t.category, t.subcategory].filter(Boolean).join(' · '); }
+function themeOptions(sel){ return `<option value="">No theme</option>`+state.themes.map(t=>`<option value="${esc(t.id)}"${t.id===sel?' selected':''}>${esc(themeLabel(t))}</option>`).join(''); }
+function themePayload(id){ const t=themeById(id); return t?{category:t.category,subcategory:t.subcategory,description:t.description}:null; }
 let postBrowseBy='region';
 function postReset(){ post.drafts=[]; post.locked=[]; post.selCopy=[]; post.mode='post'; post.images=[null,null]; post.loading=false; post.picking=-1; }
 function postToneLabel(t){ return (['Formal','Measured','Balanced','Warm','Chatty'][(Number(t)||3)-1])||'Balanced'; }
@@ -980,10 +1014,11 @@ async function loadPostDrafts(g, remix){
   let imageUrl=null; const im=post.images[0];
   if(im&&im.thumb_path){ try{ const c=client(); const { data }=await c.storage.from('photos').createSignedUrl(im.thumb_path,3600); imageUrl=data&&data.signedUrl; }catch(e){} }
   const te=document.getElementById('pcTone'); const tone=te?+te.value:(Number(g.tone)||3);
+  const theme=themePayload(post.themeId);
   if(remix){ const idxs=post.drafts.map((_,i)=>i).filter(i=>!post.locked[i]); const need=idxs.length||post.drafts.length||3;
-    const fresh=(await runFetchDrafts(g,need,post.drafts.filter((_,i)=>!post.locked[i]),{tone,imageUrl}))||fallbackDrafts(g,need);
+    const fresh=(await runFetchDrafts(g,need,post.drafts.filter((_,i)=>!post.locked[i]),{tone,imageUrl,theme}))||fallbackDrafts(g,need);
     let k=0; post.drafts=post.drafts.map((d,i)=>{ if(post.locked[i]) return d; const nd=fresh[k++]; return nd!=null?nd:d; });
-  } else { const fresh=(await runFetchDrafts(g,3,[],{tone,imageUrl}))||fallbackDrafts(g,3); post.drafts=fresh.slice(0,3); post.locked=post.drafts.map(()=>false); post.selCopy=[]; }
+  } else { const fresh=(await runFetchDrafts(g,3,[],{tone,imageUrl,theme}))||fallbackDrafts(g,3); post.drafts=fresh.slice(0,3); post.locked=post.drafts.map(()=>false); post.selCopy=[]; }
   post.loading=false; renderPostCockpit();
 }
 function postSelect(i){ const max=post.mode==='ab'?2:1, pos=post.selCopy.indexOf(i);
@@ -1009,6 +1044,7 @@ function renderPostCockpit(){
       ${g.url?`<a class="btn-sm" href="${esc(g.url)}" target="_blank" rel="noopener" style="text-decoration:none">Open on Facebook ↗</a>`:''}</div>
     <div class="mz-tools" style="margin:6px 0 8px">
       <label class="mz-zoom">Tone <input type="range" id="pcTone" min="1" max="5" step="1" value="${Number(g.tone)||3}"> <span id="pcToneLab" class="muted" style="text-transform:none;letter-spacing:0">${postToneLabel(g.tone)}</span></label>
+      ${state.themes.length?`<label class="mz-zoom">Theme <select class="search" id="pcTheme" style="max-width:220px;flex:none;height:34px">${themeOptions(post.themeId)}</select></label>`:''}
       <span style="flex:1"></span>
       <button class="chip ${post.mode==='post'?'on':''}" data-pcmode="post">Single</button>
       <button class="chip ${post.mode==='ab'?'on':''}" data-pcmode="ab">A/B test</button></div>
@@ -1081,6 +1117,8 @@ function wirePostCockpit(){ const box=document.getElementById('postCockpit'), g=
   const tone=document.getElementById('pcTone');
   if(tone){ tone.addEventListener('input',()=>{ const l=document.getElementById('pcToneLab'); if(l) l.textContent=postToneLabel(tone.value); });
     tone.addEventListener('change',async()=>{ g.tone=+tone.value; try{ const c=client(); if(c) await c.from('groups').update({tone:g.tone}).eq('id',g.id); }catch(e){} showToast('Tone saved — Remix to apply'); }); }
+  const themeSel=document.getElementById('pcTheme');
+  if(themeSel) themeSel.addEventListener('change',()=>{ post.themeId=themeSel.value; showToast(post.themeId?'Theme set — Remix to apply':'Theme cleared'); });
 }
 function openCockpit(id){ const g=state.groups.find(x=>x.id===id); if(!g) return; post.group=g; postReset(); renderPostCockpit();
   if(state.tab==='Post'){ loadPostDrafts(g,false); const c=document.getElementById('postCockpit'); if(c) c.scrollIntoView({behavior:'smooth',block:'start'}); } }
@@ -1672,7 +1710,7 @@ function readDays(scope){ return scope?[...scope.querySelectorAll('.dchip.on')].
 async function saveGroup(g, patch, toast){
   const c=client(); if(!c){ showToast('No database connection'); return false; }
   try{ const { error }=await c.from('groups').update(patch).eq('id',g.id); if(error) throw error;
-    Object.assign(g,patch); renderAudit(); renderGroups(); renderPlan(); renderPost(); if('tier' in patch) renderDash();
+    Object.assign(g,patch); renderAudit(); renderGroups(); renderPlan(); renderPostBrowser(); if('tier' in patch) renderDash();
     if(toast) showToast(toast); return true;
   }catch(err){ showToast('Save failed'); return false; }
 }
@@ -1794,7 +1832,7 @@ async function confirmBulk(){
   let ok=0;
   for(const m of chosen){ try{ const { error }=await c.from('groups').update({url:m.url,url_candidates:[]}).eq('id',m.group.id); if(error) throw error; Object.assign(m.group,{url:m.url,url_candidates:[]}); ok++; }catch(e){} }
   if(msg) msg.textContent=`Wrote ${ok} link(s).`;
-  renderAudit(); renderGroups(); renderPost(); showToast(`Confirmed ${ok} link(s) ✓`);
+  renderAudit(); renderGroups(); renderPostBrowser(); showToast(`Confirmed ${ok} link(s) ✓`);
 }
 (function(){ const b=document.getElementById('bulkParse'); if(b) b.addEventListener('click',parseBulk); })();
 
@@ -1813,7 +1851,7 @@ async function runFetchDrafts(g,count,exclude,opts){
   try{ const { data, error }=await c.functions.invoke('draft-copy',{ body:{
       group:{name:g.name,area:g.area,tier:g.tier,official_rules:g.official_rules,posting_note:g.posting_note,avoid:g.avoid,context_summary:g.context_summary,tone:g.tone},
       dna:state.dna.map(d=>({title:d.title,category:d.category,body:d.body})), count, exclude,
-      tone:(opts.tone!=null?opts.tone:g.tone), image_url:opts.imageUrl||null } });
+      tone:(opts.tone!=null?opts.tone:g.tone), image_url:opts.imageUrl||null, theme:opts.theme||null } });
     if(error||!data||data.error||!Array.isArray(data.drafts)||!data.drafts.length) return null;
     return data.drafts;
   }catch(e){ return null; }
@@ -1913,7 +1951,7 @@ async function runPosted(g){
   try{ const { error }=await c.from('posting_log').insert(row); if(error) throw error;
     state.posts.push(row); runReset();
     const sp=schedFor(g); if(sp){ try{ await c.from('scheduled_posts').update({status:'posted'}).eq('id',sp.id); sp.status='posted'; }catch(e){} }
-    renderCapMeter(); renderDash(); renderPlan(); renderPost(); renderRun(); renderSchedules();
+    renderCapMeter(); renderDash(); renderPlan(); renderPostBrowser(); renderRun(); renderSchedules();
     showToast(`Logged ✓ to ${g.name}`);
   }catch(err){ msg.innerHTML='<div class="err"><b>Couldn’t log it:</b> '+esc(err.message||'insert failed')+'</div>'; }
 }
@@ -2036,6 +2074,59 @@ function closePlanned(){ document.getElementById('pvDrawer').classList.remove('o
   ['cFrom','cTo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('change',renderCreated); });
   const pvc=document.getElementById('pvClose'), pvv=document.getElementById('pvVeil'); if(pvc) pvc.addEventListener('click',closePlanned); if(pvv) pvv.addEventListener('click',closePlanned);
   const pvBody=document.getElementById('pvBody'); if(pvBody) pvBody.addEventListener('click',e=>{ const b=e.target.closest('[data-pv]'); if(!b) return; if(b.dataset.pv==='run'){ closePlanned(); showTab('Run'); } else if(b.dataset.pv==='remove'){ removeSchedule(b.dataset.id); closePlanned(); } });
+})();
+
+/* ---- Themes (categorised AI steering: page CRUD + try-on-advert) ---- */
+let thEditId=null, thTryDrafts=[];
+function renderThemes(){
+  const tc=document.getElementById('thTryComp'), tt=document.getElementById('thTryTheme');
+  if(tc) tc.innerHTML=`<option value="">Pick a saved advert…</option>`+state.compositions.slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))).map(co=>`<option value="${esc(co.id)}">${esc(co.title||'Untitled advert')}</option>`).join('');
+  if(tt) tt.innerHTML=themeOptions('');
+  const box=document.getElementById('thBody'); if(!box) return;
+  if(!state.themes.length){ box.innerHTML='<div class="next-note">No themes yet — add your first above.</div>'; return; }
+  const byCat={}; state.themes.forEach(t=>{ (byCat[t.category||'Uncategorised']=byCat[t.category||'Uncategorised']||[]).push(t); });
+  box.innerHTML=Object.keys(byCat).map(cat=>`<div class="gacc open"><div class="gacc-h"><svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg><span class="gacc-name">${esc(cat)}</span><span class="gacc-stat"><span class="gpill neutral">${byCat[cat].length}</span></span></div>
+    <div class="gacc-b">${byCat[cat].map(t=>`<div class="ag-item"><div class="ag-item-h"><span class="ag-item-nm">${esc(t.subcategory||t.category)}</span><button class="btn-sm" data-thedit="${esc(t.id)}">Edit</button><button class="btn-sm" data-thdel="${esc(t.id)}">Delete</button></div>${t.description?`<div class="v" style="font-size:13.5px">${esc(t.description)}</div>`:'<div class="v empty">No description</div>'}</div>`).join('')}</div></div>`).join('');
+}
+async function saveTheme(){
+  const cat=(document.getElementById('thCat').value||'').trim(), sub=(document.getElementById('thSub').value||'').trim(), desc=(document.getElementById('thDesc').value||'').trim();
+  if(!cat){ showToast('Give it a category first'); return; }
+  const c=client(); if(!c) return;
+  try{
+    if(thEditId){ const { error }=await c.from('themes').update({category:cat,subcategory:sub||null,description:desc||null,updated_at:new Date().toISOString()}).eq('id',thEditId); if(error) throw error;
+      const t=themeById(thEditId); if(t) Object.assign(t,{category:cat,subcategory:sub,description:desc}); thCancelEdit(); }
+    else { const { data, error }=await c.from('themes').insert({category:cat,subcategory:sub||null,description:desc||null,sort:(state.themes.length+1)*10}).select().single(); if(error) throw error; state.themes.push(data);
+      document.getElementById('thCat').value=''; document.getElementById('thSub').value=''; document.getElementById('thDesc').value=''; }
+    renderThemes(); if(post.group) renderPostCockpit();
+    const fl=document.getElementById('thFlash'); if(fl){ fl.classList.add('on'); setTimeout(()=>fl.classList.remove('on'),1400); } showToast('Theme saved ✓');
+  }catch(err){ showToast('Save failed'); }
+}
+function thEdit(id){ const t=themeById(id); if(!t) return; thEditId=id;
+  document.getElementById('thCat').value=t.category||''; document.getElementById('thSub').value=t.subcategory||''; document.getElementById('thDesc').value=t.description||'';
+  document.getElementById('thFormTitle').textContent='Edit theme'; document.getElementById('thSave').textContent='Save changes'; document.getElementById('thCancel').style.display='';
+  document.getElementById('thCat').scrollIntoView({behavior:'smooth',block:'center'}); }
+function thCancelEdit(){ thEditId=null; document.getElementById('thCat').value=''; document.getElementById('thSub').value=''; document.getElementById('thDesc').value='';
+  document.getElementById('thFormTitle').textContent='New theme'; document.getElementById('thSave').textContent='Add theme'; document.getElementById('thCancel').style.display='none'; }
+async function delTheme(id){ const c=client(); if(!c) return; try{ const { error }=await c.from('themes').delete().eq('id',id); if(error) throw error; state.themes=state.themes.filter(t=>t.id!==id); if(thEditId===id) thCancelEdit(); renderThemes(); if(post.group) renderPostCockpit(); showToast('Theme deleted'); }catch(e){ showToast('Delete failed'); } }
+async function thTry(){
+  const compId=document.getElementById('thTryComp').value, themeId=document.getElementById('thTryTheme').value, body=document.getElementById('thTryBody');
+  if(!compId){ body.innerHTML='<div class="err">Pick a saved advert first.</div>'; return; }
+  const co=state.compositions.find(x=>x.id===compId); if(!co) return;
+  body.innerHTML='<div class="loading">Drafting with AI…</div>';
+  let imageUrl=null; try{ const c=client(); const { data }=await c.storage.from('photos').createSignedUrl(co.thumb_path,3600); imageUrl=data&&data.signedUrl; }catch(e){}
+  const pseudo={ name:co.title||'Advert', area:'', tier:'green', tags:co.tags };
+  thTryDrafts=(await runFetchDrafts(pseudo,3,[],{theme:themePayload(themeId),imageUrl}))||fallbackDrafts(pseudo,3);
+  body.innerHTML=`<textarea class="dna-t" id="thTryText" style="min-height:120px">${esc(thTryDrafts[0]||'')}</textarea>
+    <div class="dna-act" style="margin-top:8px"><button class="btn-sm btn-post" id="thTrySave">Save to advert</button><button class="btn-sm" id="thTryCopy">Copy</button>${thTryDrafts.slice(1).map((d,i)=>`<button class="btn-sm" data-thalt="${i+1}">Option ${i+2}</button>`).join('')}</div>`;
+  document.getElementById('thTrySave').onclick=async()=>{ const txt=document.getElementById('thTryText').value; const c=client(); if(!c) return; try{ await c.from('compositions').update({copy:txt}).eq('id',co.id); co.copy=txt; showToast('Saved to advert ✓'); }catch(e){ showToast('Save failed'); } };
+  document.getElementById('thTryCopy').onclick=()=>{ navigator.clipboard.writeText(document.getElementById('thTryText').value||'').then(()=>showToast('Copied ✓')).catch(()=>{}); };
+  body.querySelectorAll('[data-thalt]').forEach(b=>b.addEventListener('click',()=>{ document.getElementById('thTryText').value=thTryDrafts[+b.dataset.thalt]||''; }));
+}
+(function(){
+  const sv=document.getElementById('thSave'); if(sv) sv.addEventListener('click',saveTheme);
+  const cn=document.getElementById('thCancel'); if(cn) cn.addEventListener('click',thCancelEdit);
+  const bd=document.getElementById('thBody'); if(bd) bd.addEventListener('click',e=>{ const gh=e.target.closest('.gacc-h'); if(gh){ gh.parentElement.classList.toggle('open'); return; } const ed=e.target.closest('[data-thedit]'); if(ed){ thEdit(ed.dataset.thedit); return; } const dl=e.target.closest('[data-thdel]'); if(dl){ delTheme(dl.dataset.thdel); return; } });
+  const go=document.getElementById('thTryGo'); if(go) go.addEventListener('click',thTry);
 })();
 
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
