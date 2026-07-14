@@ -42,11 +42,11 @@ From `SPRINT_SPEC_2b` §3d (real live-UAT findings).
 
 | # | Task | Status |
 |---|---|---|
-| R1 | New **Run** tab; build queue from Plan (greens-first, ≤12/day, rule-days, cooldown excluded) | ❌ |
-| R2 | Stepper per group: 3 AI drafts (remix + lock + select), **Post / A-B** toggle, copy-ready | ❌ |
-| R3 | **Posted ✓** writes real `posting_log` row + advances; cap blocks at 12; **A/B = one row, counts once** | ❌ |
-| R4 | `scheduled_posts` table + workspace accordions: **Posts created** (period filter) & **Scheduled** | ❌ |
-| R5 | "Planning only — can't post until {date}" messaging (also resolves A1/A3) | ❌ |
+| R1 | New **Run** tab; build queue from Plan (greens-first, ≤12/day, rule-days, cooldown excluded) | ✅ (PR #16) |
+| R2 | Stepper per group: 3 AI drafts (remix + lock + select), **Post / A-B** toggle, copy-ready | ✅ (PR #16) — DNA-grounded `draft-copy` Edge Function, remix/lock/select, editable, offline fallback |
+| R3 | **Posted ✓** writes real `posting_log` row + advances; cap blocks at 12; **A/B = one row, counts once** | ✅ (PR #16) — guarded write (cap/cooldown/off-day backstop); A/B = one `variation='A/B'` row |
+| R4 | `scheduled_posts` table + workspace accordions: **Posts created** (period filter) & **Scheduled** | ❌ — clean follow-up (2b part 2 / §3c) |
+| R5 | "Planning only — can't post until {date}" messaging (also resolves A1/A3) | ✅ (A1 + Run guard messaging) |
 
 ---
 
