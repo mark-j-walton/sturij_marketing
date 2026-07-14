@@ -31,8 +31,8 @@ From `SPRINT_SPEC_2b` §3d (real live-UAT findings).
 
 | # | Task | Status | Size |
 |---|---|---|---|
-| **A1** | **Post cockpit: contradictory guard pills + dead-end.** After "Posted ✓" the button silently disables and pills contradict (*"COOLDOWN — 14 DAYS LEFT"* next to *"OK TO POST TODAY"*). Fix → one clear net status (*"Can't post — in cooldown until {date}"*), a success toast, and a path to the next group. | 🐛 | **S** |
-| **A2** | **Group Detail view** — no way to open a group's rules/size/reach/`posting_days`/FB link. Add a row/click → detail panel, reachable from **Groups and Post**. | ❌ | M |
+| **A1** | **Post cockpit: contradictory guard pills + dead-end.** After "Posted ✓" the button silently disables and pills contradict (*"COOLDOWN — 14 DAYS LEFT"* next to *"OK TO POST TODAY"*). Fix → one clear net status (*"Can't post — in cooldown until {date}"*), a success toast, and a path to the next group. | ✅ (PR #9) | **S** |
+| **A2** | **Group Detail view** — the drawer already existed on the Groups tab (tier/reach/rules/notes/FB link). Enriched it with the fields that were in the data but hidden — **members/size, posting note, avoid-topics, context, tags** — and added a **View group details** entry point from the **Post** cockpit. | ✅ (PR #10) | M |
 | **A3** | **Plan shows live suggestions, not saved plans** — nothing planned persists. Needs `scheduled_posts` (see R4). | 🟡 | M (ties to R-track) |
 
 ---
