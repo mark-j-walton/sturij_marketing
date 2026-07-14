@@ -248,6 +248,10 @@
   .gpill.neutral{background:rgba(35,31,27,.06);color:var(--ink-muted)}
   :root[data-theme="dark"] .gpill.neutral{background:rgba(240,237,230,.06)}
   .gacc-b{display:none;padding:4px 16px 14px} .gacc.open .gacc-b{display:block}
+  .pager{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 4px;margin-bottom:12px}
+  .pager-size{display:flex;align-items:center;gap:8px;color:var(--ink-muted);font-size:12.5px}
+  .pager-info{color:var(--ink-muted);font-family:'IBM Plex Mono',monospace;font-size:12px}
+  .pager-nav{display:flex;gap:8px;margin-left:auto}
   /* advert tiles + lightbox (shared: Photos>Adverts, dashboard showcase) */
   .adv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
   .adv-tile{border-radius:12px;overflow:hidden;cursor:pointer;background:var(--card);border:1px solid var(--line-soft);box-shadow:var(--shadow-card);transition:transform .12s,box-shadow .12s}
@@ -1364,6 +1368,19 @@ function supAction(e){
 
 /* ---- Photos (private library + human clearance gate) ---- */
 let phView='recent';
+let phPageSize=10, phPage=0;
+function phPager(items){
+  const total=items.length, pages=Math.max(1,Math.ceil(total/phPageSize));
+  if(phPage>=pages) phPage=pages-1; if(phPage<0) phPage=0;
+  const start=phPage*phPageSize, end=Math.min(total,start+phPageSize);
+  const sizes=[10,20,30,40,50].map(n=>`<option value="${n}"${n===phPageSize?' selected':''}>${n}</option>`).join('');
+  const bar = total>10 ? `<div class="pager">
+    <label class="pager-size">Show <select id="phPageSize" class="search" style="width:auto;flex:none;padding:6px 8px">${sizes}</select> per page</label>
+    <span class="pager-info">${start+1}–${end} of ${total}</span>
+    <span class="pager-nav"><button class="btn-sm" data-phpage="prev"${phPage<=0?' disabled':''}>‹ Prev</button><button class="btn-sm" data-phpage="next"${phPage>=pages-1?' disabled':''}>Next ›</button></span>
+  </div>` : '';
+  return { slice: items.slice(start,end), bar };
+}
 const CLEAR_CHECKS=[
   'No recognisable faces (or you have permission to show them)',
   'No valuables, keys, alarms or security details visible',
@@ -1465,8 +1482,10 @@ function renderPhotos(){
     const seen=new Set(); items=[]; [...byDate,...byUse].forEach(p=>{ if(!seen.has(p.id)){ seen.add(p.id); items.push(p); } });
   }
   if(!q) items=items.slice().sort((a,b)=>((a.description?1:0)-(b.description?1:0)));   // missing-description floats top
-  box.innerHTML=banner
-    +(items.length?items.map(photoCard).join(''):`<div class="next-note">${list.length?'No photos match.':'No photos yet — add your first above.'}</div>`);
+  const pg=phPager(items);
+  box.innerHTML=banner+pg.bar
+    +(items.length?pg.slice.map(photoCard).join(''):`<div class="next-note">${list.length?'No photos match.':'No photos yet — add your first above.'}</div>`)
+    +(items.length>phPageSize?pg.bar.replace('id="phPageSize"','id="phPageSizeB"'):'');
   signThumbs();
 }
 async function setPhoto(p,patch,toast){
@@ -1477,6 +1496,8 @@ async function setPhoto(p,patch,toast){
   catch(err){ showToast('Update failed'); }
 }
 function phAction(e){
+  const ps=e.target.closest('#phPageSize,#phPageSizeB'); if(ps){ phPageSize=+ps.value||10; phPage=0; renderPhotos(); return; }
+  const pn=e.target.closest('[data-phpage]'); if(pn){ phPage+=(pn.dataset.phpage==='next'?1:-1); renderPhotos(); return; }
   const gh=e.target.closest('.gacc-h'); if(gh){ gh.parentElement.classList.toggle('open'); return; }
   const cardEl=e.target.closest('.ph-c'); if(!cardEl) return;
   const p=state.photos.find(x=>x.id===cardEl.dataset.id); if(!p) return;
@@ -1492,8 +1513,8 @@ function phAction(e){
 (function(){
   const pick=document.getElementById('phPick'), file=document.getElementById('phFile');
   if(pick&&file){ pick.addEventListener('click',()=>file.click()); file.addEventListener('change',()=>{ if(file.files&&file.files.length) uploadPhotos([...file.files]); file.value=''; }); }
-  const s=document.getElementById('phSearch'); if(s) s.addEventListener('input',renderPhotos);
-  document.querySelectorAll('[data-phv]').forEach(b=>b.addEventListener('click',()=>{ phView=b.dataset.phv;
+  const s=document.getElementById('phSearch'); if(s) s.addEventListener('input',()=>{ phPage=0; renderPhotos(); });
+  document.querySelectorAll('[data-phv]').forEach(b=>b.addEventListener('click',()=>{ phView=b.dataset.phv; phPage=0;
     document.querySelectorAll('[data-phv]').forEach(x=>x.classList.toggle('on',x===b)); const se=document.getElementById('phSearch'); if(se) se.value=''; renderPhotos(); }));
   const body=document.getElementById('phBody'); if(body){ body.addEventListener('click',phAction); body.addEventListener('change',phAction); }
 })();
