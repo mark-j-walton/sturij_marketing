@@ -793,7 +793,10 @@ let sb = null;
 function client(){ if(!sb && window.supabase) sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON); return sb; }
 
 const CAP = 12;                       // DESIGN + spec: 12 posts/day
-const TODAY = new Date().toISOString().slice(0,10);
+/* "Today" is computed per-call in Europe/London (never frozen at page load,
+   never UTC) — a tab left open past midnight can no longer log wrong dates
+   or hold yesterday's cap. The database independently re-checks all of this. */
+const todayStr = () => new Date().toLocaleDateString('en-CA',{timeZone:'Europe/London'});
 const state = { tab:'Dashboard', account:'', filter:'all', planView:'today', groups:[], posts:[], restrictions:[], dna:[], support:[], photos:[], templates:[], compositions:[], scheduled:[], themes:[], archived:[], videos:[] };
 
 const TABS = [
@@ -891,8 +894,12 @@ async function loadAll(){
   if(!c){ document.getElementById('dashStats').innerHTML='<div class="loading">Couldn’t load the data library — check your connection and reload.</div>'; return; }
   try{
     const [g,p,r,d,s,ph,tm,co,sp,th,vd] = await Promise.all([
-      c.from('groups').select('*'),
-      c.from('posting_log').select('*'),
+      c.from('groups').select('*').limit(2000),
+      // Guardrail maths needs recent history, not all of it — and an uncapped
+      // select silently truncates at Supabase's 1000-row default as the log
+      // grows, which would quietly corrupt cap/cooldown numbers. 120 days
+      // covers every 14-day cooldown with plenty of margin.
+      c.from('posting_log').select('*').gte('posted_on', new Date(Date.now()-120*86400000).toISOString().slice(0,10)).order('posted_on',{ascending:false}).limit(4000),
       c.from('restrictions').select('*'),
       c.from('dna').select('*'),
       c.from('support_tickets').select('*'),
@@ -915,12 +922,12 @@ async function loadAll(){
 }
 
 const num = n => (n==null?'—':Number(n).toLocaleString('en-GB'));
-const appPostsToday = () => state.posts.filter(p=>p.source==='app' && p.posted_on===TODAY).length;
+const appPostsToday = () => state.posts.filter(p=>p.source==='app' && p.posted_on===todayStr()).length;
 function daysSinceRestriction(){
   if(!state.restrictions.length) return null;
   const last = state.restrictions.map(r=>r.restricted_on).filter(Boolean).sort().pop();
   if(!last) return null;
-  return Math.floor((new Date(TODAY)-new Date(last))/86400000);
+  return Math.floor((new Date(todayStr())-new Date(last))/86400000);
 }
 
 /* ---- cap meter ---- */
@@ -1105,13 +1112,13 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrawer(); });
 const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function lockedToday(g){ // rule-locked groups only appear on their posting_days
   if(!g.posting_days||!g.posting_days.length) return true;
-  const day=DOW[new Date(TODAY).getDay()];
+  const day=DOW[new Date(todayStr()).getDay()];
   return g.posting_days.some(d=>String(d).toLowerCase().startsWith(day.toLowerCase()));
 }
-function cooldownOk(g){ // 14-day per-group cooldown, app rows only
-  const last=state.posts.filter(p=>p.group_id===g.id && p.source==='app').map(p=>p.posted_on).sort().pop();
+function cooldownOk(g){ // 14-day per-group cooldown — ALL history counts (incl. reconstructed)
+  const last=state.posts.filter(p=>p.group_id===g.id).map(p=>p.posted_on).sort().pop();
   if(!last) return true;
-  return Math.floor((new Date(TODAY)-new Date(last))/86400000)>=14;
+  return Math.floor((new Date(todayStr())-new Date(last))/86400000)>=14;
 }
 function renderPlan(){
   const left=CAP-appPostsToday();
@@ -1130,7 +1137,7 @@ function renderPlan(){
   } else {
     let html='<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">';
     for(let d=0;d<7;d++){
-      const date=new Date(new Date(TODAY).getTime()+d*86400000);
+      const date=new Date(new Date(todayStr()).getTime()+d*86400000);
       const dn=DOW[date.getDay()], weekend=(date.getDay()===0||date.getDay()===6);
       const elig=weekend?[]:state.groups.filter(g=>{ const day=dn;
         return (!g.posting_days||!g.posting_days.length||g.posting_days.some(x=>String(x).toLowerCase().startsWith(day.toLowerCase()))) && cooldownOk(g); });
@@ -1185,10 +1192,10 @@ const VOICE = a => ([
   `Bespoke fitted furniture, built here in Yorkshire for ${a||'local'} homes. Real carcasses and quality hinges — not flat-pack — finished to last. Planning a bedroom, kitchen or home office? I'll happily talk options through, no hard sell.`
 ]);
 function phash(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return (h>>>0).toString(16); }
-function lastAppPost(g){ return state.posts.filter(p=>p.group_id===g.id && p.source==='app').map(p=>p.posted_on).sort().pop(); }
-function cooldownLeft(g){ const l=lastAppPost(g); if(!l) return 0; return Math.max(0, 14 - Math.floor((new Date(TODAY)-new Date(l))/86400000)); }
+function lastAppPost(g){ return state.posts.filter(p=>p.group_id===g.id).map(p=>p.posted_on).sort().pop(); } // all sources — real history counts
+function cooldownLeft(g){ const l=lastAppPost(g); if(!l) return 0; return Math.max(0, 14 - Math.floor((new Date(todayStr())-new Date(l))/86400000)); }
 function cooldownUntilStr(g){ const l=lastAppPost(g); if(!l) return ''; const d=new Date(l); d.setDate(d.getDate()+14); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}); }
-function nextPostingDay(g){ if(!g.posting_days||!g.posting_days.length) return ''; const wanted=g.posting_days.map(x=>String(x).toLowerCase().slice(0,3)); const names=['sun','mon','tue','wed','thu','fri','sat']; const base=new Date(TODAY); for(let i=1;i<=7;i++){ const d=new Date(base); d.setDate(base.getDate()+i); if(wanted.includes(names[d.getDay()])) return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}); } return ''; }
+function nextPostingDay(g){ if(!g.posting_days||!g.posting_days.length) return ''; const wanted=g.posting_days.map(x=>String(x).toLowerCase().slice(0,3)); const names=['sun','mon','tue','wed','thu','fri','sat']; const base=new Date(todayStr()); for(let i=1;i<=7;i++){ const d=new Date(base); d.setDate(base.getDate()+i); if(wanted.includes(names[d.getDay()])) return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}); } return ''; }
 function postStatus(g){ const capLeft=CAP-appPostsToday(), cd=cooldownLeft(g), dayOk=lockedToday(g); if(capLeft<=0) return {can:false,cls:'bad',text:`Cap reached — ${CAP}/${CAP} posts today. Protect the account.`,capLeft}; if(cd>0){ const u=cooldownUntilStr(g); return {can:false,cls:'bad',text:`Can\u2019t post — in cooldown${u?` until ${u}`:''} (${cd} day${cd===1?'':'s'} left).`,capLeft}; } if(!dayOk){ const nd=nextPostingDay(g), days=(g.posting_days||[]).join('/'); return {can:false,cls:'warn',text:`Planning only — ${days||'scheduled days'} only${nd?`, next ${nd}`:''}.`,capLeft}; } return {can:true,cls:'ok',text:`OK to post today — ${capLeft} of ${CAP} left.`,capLeft}; }
 function nextSafeGroup(excludeId){ const o={green:0,amber:1,red:2}; return state.groups.filter(g=>g.id!==excludeId&&lockedToday(g)&&cooldownOk(g)).sort((a,b)=>(o[a.tier]-o[b.tier])||((b.fb_views||0)-(a.fb_views||0)))[0]||null; }
 function showToast(t){ let el=document.getElementById('toast'); if(!el){ el=document.createElement('div'); el.id='toast'; el.className='toast'; document.body.appendChild(el); } el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2600); }
@@ -1202,8 +1209,8 @@ function themePayload(id){ const t=themeById(id); return t?{category:t.category,
 let postBrowseBy='region';
 function postReset(){ post.drafts=[]; post.locked=[]; post.selCopy=[]; post.mode='post'; post.images=[null,null]; post.loading=false; post.picking=-1; }
 function postToneLabel(t){ return (['Formal','Measured','Balanced','Warm','Chatty'][(Number(t)||3)-1])||'Balanced'; }
-function lastAppPostDate(g){ return state.posts.filter(p=>p.group_id===g.id&&p.source==='app').map(p=>p.posted_on).sort().pop(); }
-function notPostedSince(g,months){ const l=lastAppPostDate(g); if(!l) return true; const d=new Date(TODAY); d.setMonth(d.getMonth()-months); return l < d.toISOString().slice(0,10); }
+function lastAppPostDate(g){ return state.posts.filter(p=>p.group_id===g.id).map(p=>p.posted_on).sort().pop(); }
+function notPostedSince(g,months){ const l=lastAppPostDate(g); if(!l) return true; const d=new Date(todayStr()); d.setMonth(d.getMonth()-months); return l < d.toISOString().slice(0,10); }
 function postGroupRow(g){ return `<div class="pk" data-open="${esc(g.id)}"><span class="dot ${g.tier}"></span><span class="nm">${esc(g.name)}</span><span class="a">${esc(g.area||'')}</span></div>`; }
 
 async function loadPostDrafts(g, remix){
@@ -1213,10 +1220,11 @@ async function loadPostDrafts(g, remix){
   const te=document.getElementById('pcTone'); const tone=te?+te.value:(Number(g.tone)||3);
   const theme=themePayload(post.themeId);
   if(remix){ const idxs=post.drafts.map((_,i)=>i).filter(i=>!post.locked[i]); const need=idxs.length||post.drafts.length||3;
-    const fresh=(await runFetchDrafts(g,need,post.drafts.filter((_,i)=>!post.locked[i]),{tone,imageUrl,theme}))||fallbackDrafts(g,need);
+    let fresh=await runFetchDrafts(g,need,post.drafts.filter((_,i)=>!post.locked[i]),{tone,imageUrl,theme}); post.usedFallback=!fresh; if(!fresh) fresh=fallbackDrafts(g,need);
     let k=0; post.drafts=post.drafts.map((d,i)=>{ if(post.locked[i]) return d; const nd=fresh[k++]; return nd!=null?nd:d; });
-  } else { const fresh=(await runFetchDrafts(g,3,[],{tone,imageUrl,theme}))||fallbackDrafts(g,3); post.drafts=fresh.slice(0,3); post.locked=post.drafts.map(()=>false); post.selCopy=[]; }
+  } else { let fresh=await runFetchDrafts(g,3,[],{tone,imageUrl,theme}); post.usedFallback=!fresh; if(!fresh) fresh=fallbackDrafts(g,3); post.drafts=fresh.slice(0,3); post.locked=post.drafts.map(()=>false); post.selCopy=[]; }
   post.loading=false; renderPostCockpit();
+  if(post.usedFallback) warnFallback('postSaveMsg');
 }
 function postSelect(i){ const max=post.mode==='ab'?2:1, pos=post.selCopy.indexOf(i);
   if(pos>=0) post.selCopy.splice(pos,1); else { if(post.selCopy.length>=max) post.selCopy.shift(); post.selCopy.push(i); } renderPostCockpit(); }
@@ -1290,16 +1298,22 @@ async function postPosted(){ const g=post.group, msg=document.getElementById('po
   let variation, content_hash; const image_ref=(post.images[0]&&post.images[0].id)||null;
   if(post.mode==='ab'){ variation='A/B'; content_hash=phash(post.drafts[post.selCopy[0]]||'')+'/'+phash(post.drafts[post.selCopy[1]]||''); }
   else { variation='A'; content_hash=phash(post.drafts[post.selCopy[0]]||''); }
-  const row={ group_id:g.id, group_name:g.name, posted_on:TODAY, variation, content_hash, image_ref, account:state.account, source:'app' };
-  try{ const { error }=await c.from('posting_log').insert(row); if(error) throw error; state.posts.push(row);
-    const sp=schedFor(g); if(sp){ try{ await c.from('scheduled_posts').update({status:'posted'}).eq('id',sp.id); sp.status='posted'; }catch(e){} }
-    for(const im of post.images){ if(im&&im.id){ try{ await c.from('compositions').update({use_count:(im.use_count||0)+1}).eq('id',im.id); im.use_count=(im.use_count||0)+1; }catch(e){} } }
+  if(postPosted._busy) return; postPosted._busy=true;
+  try{
+    const sp=schedFor(g);
+    const compIds=post.images.filter(im=>im&&im.id).map(im=>im.id);
+    const { data:logged, error }=await c.rpc('log_posted',{ p_group_id:g.id, p_group_name:g.name, p_variation:variation, p_content_hash:content_hash, p_image_ref:image_ref, p_account:state.account, p_scheduled_id:sp?sp.id:null, p_composition_ids:compIds.length?compIds:null });
+    if(error) throw error;
+    state.posts.push(logged||{ group_id:g.id, posted_on:todayStr(), source:'app' });
+    if(sp) sp.status='posted';
+    for(const im of post.images){ if(im&&im.id) im.use_count=(im.use_count||0)+1; }
     renderCapMeter(); renderDash(); renderPlan(); renderRun(); renderSchedules(); renderPostBrowser();
     const nxt=nextSafeGroup(g.id);
     msg.innerHTML=`<div class="banner ok" style="margin:0">Logged ✓ to <b>${esc(g.name)}</b> — ${CAP-appPostsToday()} of ${CAP} left today.`+(nxt?` <button class="btn-sm" id="pcNext" style="margin-left:8px">Next: ${esc(nxt.name)} →</button>`:' No more safe-today groups.')+`</div>`;
     const nb=document.getElementById('pcNext'); if(nb) nb.onclick=()=>openCockpit(nxt.id);
     showToast(`Logged ✓ to ${g.name}`);
   }catch(err){ msg.innerHTML='<div class="err"><b>Couldn’t log it:</b> '+esc(err.message||'insert failed')+'</div>'; }
+  finally{ postPosted._busy=false; }
 }
 function wirePostCockpit(){ const box=document.getElementById('postCockpit'), g=post.group; if(!box||!g) return;
   box.querySelectorAll('[data-pctext]').forEach(t=>t.addEventListener('input',()=>{ post.drafts[+t.dataset.pctext]=t.value; }));
@@ -2462,13 +2476,19 @@ async function loadDrafts(g, remix){
   run.loading=true; renderRun();
   if(remix){
     const idxs=run.drafts.map((_,i)=>i).filter(i=>!run.locked[i]); const need=idxs.length||run.drafts.length;
-    const fresh=(await runFetchDrafts(g,need,run.drafts.filter((_,i)=>!run.locked[i])))||fallbackDrafts(g,need);
+    let fresh=await runFetchDrafts(g,need,run.drafts.filter((_,i)=>!run.locked[i])); run.usedFallback=!fresh; if(!fresh) fresh=fallbackDrafts(g,need);
     let k=0; run.drafts=run.drafts.map((d,i)=>{ if(run.locked[i]) return d; const nd=fresh[k++]; return nd!=null?nd:d; });
   } else {
-    const fresh=(await runFetchDrafts(g,3,[]))||fallbackDrafts(g,3);
+    let fresh=await runFetchDrafts(g,3,[]); run.usedFallback=!fresh; if(!fresh) fresh=fallbackDrafts(g,3);
     run.drafts=fresh.slice(0,3); run.locked=run.drafts.map(()=>false); run.sel=[];
   }
   run.loading=false; renderRun();
+  if(run.usedFallback) warnFallback('runMsg');
+}
+function warnFallback(msgId){
+  showToast('⚠ AI drafting unavailable — offline template copy loaded');
+  const m=document.getElementById(msgId);
+  if(m) m.innerHTML='<div class="err">⚠ <b>AI drafting unavailable</b> — these are offline template drafts, not written for this group. Edit before posting, and avoid posting the same template to several groups.</div>';
 }
 function runSelect(i){
   const max=run.mode==='ab'?2:1, pos=run.sel.indexOf(i);
@@ -2542,6 +2562,8 @@ function runCopy(){
 async function runPosted(g){
   const msg=document.getElementById('runMsg');
   if(run.mode==='ab' && run.sel.length<2){ msg.innerHTML='<div class="err">Pick two drafts (A and B) before logging.</div>'; return; }
+  const selIdx=run.sel.length?run.sel[0]:0;
+  if(run.mode!=='ab' && !(run.drafts[selIdx]||'').trim()){ msg.innerHTML='<div class="err">Write or draft the copy first — can’t log an empty post.</div>'; return; }
   if(CAP-appPostsToday()<=0){ msg.innerHTML='<div class="err"><b>Blocked:</b> 12/12 cap reached — protect the account.</div>'; return; }
   if(cooldownLeft(g)>0){ msg.innerHTML=`<div class="err"><b>Blocked:</b> ${esc(g.name)} is in cooldown (${cooldownLeft(g)} days left).</div>`; return; }
   if(!lockedToday(g)){ msg.innerHTML=`<div class="err"><b>Planning only:</b> ${esc(g.name)} isn’t scheduled to post today.</div>`; return; }
@@ -2549,13 +2571,17 @@ async function runPosted(g){
   let variation, content_hash;
   if(run.mode==='ab'){ variation='A/B'; content_hash=phash(run.drafts[run.sel[0]]||'')+'/'+phash(run.drafts[run.sel[1]]||''); }
   else { const i=run.sel.length?run.sel[0]:0; variation='A'; content_hash=phash(run.drafts[i]||''); }
-  const row={ group_id:g.id, group_name:g.name, posted_on:TODAY, variation, content_hash, account:state.account, source:'app' };
-  try{ const { error }=await c.from('posting_log').insert(row); if(error) throw error;
-    state.posts.push(row); runReset();
-    const sp=schedFor(g); if(sp){ try{ await c.from('scheduled_posts').update({status:'posted'}).eq('id',sp.id); sp.status='posted'; }catch(e){} }
+  if(runPosted._busy) return; runPosted._busy=true;
+  try{
+    const sp=schedFor(g);
+    const { data:logged, error }=await c.rpc('log_posted',{ p_group_id:g.id, p_group_name:g.name, p_variation:variation, p_content_hash:content_hash, p_image_ref:null, p_account:state.account, p_scheduled_id:sp?sp.id:null, p_composition_ids:null });
+    if(error) throw error;
+    state.posts.push(logged||{ group_id:g.id, posted_on:todayStr(), source:'app' }); runReset();
+    if(sp) sp.status='posted';
     renderCapMeter(); renderDash(); renderPlan(); renderPostBrowser(); renderRun(); renderSchedules();
     showToast(`Logged ✓ to ${g.name}`);
   }catch(err){ msg.innerHTML='<div class="err"><b>Couldn’t log it:</b> '+esc(err.message||'insert failed')+'</div>'; }
+  finally{ runPosted._busy=false; }
 }
 function renderRun(){
   const box=document.getElementById('runBody'), head=document.getElementById('runHead'); if(!box) return;
@@ -2573,12 +2599,12 @@ function renderRun(){
 /* ---- Scheduled posts (Plan -> Run carry-through) + dashboard tables (§3c) ---- */
 let schedView='list';
 const schedPending=()=>state.scheduled.filter(s=>s.status==='pending').sort((a,b)=>String(a.planned_on||'').localeCompare(String(b.planned_on||'')));
-const schedPendingToday=()=>state.scheduled.filter(s=>s.status==='pending' && (!s.planned_on || s.planned_on<=TODAY));
+const schedPendingToday=()=>state.scheduled.filter(s=>s.status==='pending' && (!s.planned_on || s.planned_on<=todayStr()));
 function schedFor(g){ return schedPendingToday().find(s=>s.group_id===g.id); }
 async function addSchedule(g, co){
   const c=client(); if(!c||!g) return;
   if(!co && schedFor(g)){ showToast('Already planned'); return; }
-  const row={ group_id:g.id, group_name:g.name, area:g.area, planned_on:TODAY, status:'pending', created_by:state.account };
+  const row={ group_id:g.id, group_name:g.name, area:g.area, planned_on:todayStr(), status:'pending', created_by:state.account };
   if(co){ row.composition_id=co.id; row.image_ref=co.thumb_path; }
   try{ const { data, error }=await c.from('scheduled_posts').insert(row).select().single(); if(error) throw error;
     state.scheduled.unshift(data); renderPlan(); renderRun(); renderSchedules(); showToast(`Planned ${g.name} ✓`);
@@ -2614,9 +2640,9 @@ function renderSched(){
   }
   signSchedThumbs(body);
 }
-function periodStart(kind){ const now=new Date(TODAY);
+function periodStart(kind){ const now=new Date(todayStr());
   if(kind==='week'){ const d=new Date(now); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return d.toISOString().slice(0,10); }
-  if(kind==='month'){ return TODAY.slice(0,8)+'01'; }
+  if(kind==='month'){ return todayStr().slice(0,8)+'01'; }
   if(kind==='30'){ const d=new Date(now); d.setDate(d.getDate()-30); return d.toISOString().slice(0,10); }
   return null; }
 function renderCreated(){
@@ -2637,7 +2663,7 @@ function renderSchedules(){ renderSched(); renderCreated(); }
 /* ---- Plan · ready-to-post queue: date accordions + floating paste window + Posted ✓ ---- */
 function planDateLabel(d){
   if(!d||d==='No date') return 'No date set';
-  if(d===TODAY) return 'Today · '+supDate(d);
+  if(d===todayStr()) return 'Today · '+supDate(d);
   const dt=new Date(d); return DOW[dt.getDay()]+' · '+supDate(d);
 }
 function rpJobCard(s){
@@ -2685,9 +2711,10 @@ async function rpDraft(s,card){
   const g=state.groups.find(x=>x.id===s.group_id); if(!g){ showToast('Group not found'); return; }
   const ta=card.querySelector('[data-rpcopy]'), btn=card.querySelector('[data-rp="draft"]');
   if(btn){ btn.disabled=true; btn.textContent='Drafting…'; }
-  const fresh=(await runFetchDrafts(g,1,s.content?[s.content]:[]))||fallbackDrafts(g,1);
+  let fresh=await runFetchDrafts(g,1,s.content?[s.content]:[]); const rpFb=!fresh; if(!fresh) fresh=fallbackDrafts(g,1);
   const copy=(fresh&&fresh[0])||''; if(ta) ta.value=copy;
   await rpSaveContent(s,copy); renderReadyToPost();
+  if(rpFb) showToast('⚠ AI drafting unavailable — offline template copy loaded. Edit before posting.');
 }
 async function rpPosted(s){
   const g=state.groups.find(x=>x.id===s.group_id); if(!g){ showToast('Group not found'); return false; }
@@ -2696,13 +2723,17 @@ async function rpPosted(s){
   if(!lockedToday(g)){ showToast('Not scheduled to post today.'); return false; }
   const c=client(); if(!c) return false;
   const content=s.content||'';
-  const row={ group_id:g.id, group_name:g.name, posted_on:TODAY, variation:'A', content_hash:phash(content), account:state.account, source:'app' };
-  try{ const { error }=await c.from('posting_log').insert(row); if(error) throw error;
-    state.posts.push(row);
-    try{ await c.from('scheduled_posts').update({status:'posted'}).eq('id',s.id); s.status='posted'; }catch(e){}
+  if(!content.trim()){ showToast('Write or draft the copy first — can’t log an empty post.'); return false; }
+  if(rpPosted._busy) return false; rpPosted._busy=true;
+  try{
+    const { data:logged, error }=await c.rpc('log_posted',{ p_group_id:g.id, p_group_name:g.name, p_variation:'A', p_content_hash:phash(content), p_image_ref:s.image_ref||null, p_account:state.account, p_scheduled_id:s.id, p_composition_ids:s.composition_id?[s.composition_id]:null });
+    if(error) throw error;
+    state.posts.push(logged||{ group_id:g.id, posted_on:todayStr(), source:'app' });
+    s.status='posted';
     renderCapMeter(); renderDash(); renderPlan(); renderPostBrowser(); renderRun(); renderSchedules();
     showToast(`Logged ✓ to ${g.name}`); return true;
-  }catch(err){ showToast('Couldn’t log it'); return false; }
+  }catch(err){ showToast('Couldn’t log it — '+(err.message||'refused')); return false; }
+  finally{ rpPosted._busy=false; }
 }
 async function openPasteWindow(s){
   const g=state.groups.find(x=>x.id===s.group_id)||{};
