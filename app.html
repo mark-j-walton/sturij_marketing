@@ -762,9 +762,33 @@
 <div class="lbx" id="plbx"><button class="lbx-x" id="plbxX" aria-label="Close">✕</button><div class="lbx-card" id="plbxCard" style="max-width:min(94vw,900px)"></div></div>
 
 <script>
-/* ============ Supabase client — reused verbatim from group_ledger.html ============ */
-const SUPABASE_URL = 'https://xscvfzfeepiakudshtod.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzY3ZmemZlZXBpYWt1ZHNodG9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2NTI0NTksImV4cCI6MjA5OTIyODQ1OX0.uYiB9r3_v9NbCp7jUIMtXdzuCr5j5Vh8b3sVTjGkFdo';
+/* ============ Environment switch ============
+   Production (marketing.sturij.com) talks to the production Supabase project.
+   Everything else — the staging domain, Vercel previews, localhost — talks to
+   the isolated staging project, so a test build can NEVER touch live data. */
+const APP_ENV = (location.hostname === 'marketing.sturij.com') ? 'prod' : 'staging';
+const ENV_CONFIG = {
+  prod: {
+    url:  'https://xscvfzfeepiakudshtod.supabase.co',
+    anon: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzY3ZmemZlZXBpYWt1ZHNodG9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2NTI0NTksImV4cCI6MjA5OTIyODQ1OX0.uYiB9r3_v9NbCp7jUIMtXdzuCr5j5Vh8b3sVTjGkFdo',
+  },
+  staging: {
+    url:  'https://srezefvaahdiiczakadx.supabase.co',
+    anon: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNyZXplZnZhYWhkaWljemFrYWR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1ODY4MzksImV4cCI6MjEwMDE2MjgzOX0.prk6L7B_o5O6ceO1ODk1bBIb8B5e19Scc94xvf3o3X0',
+  },
+};
+const SUPABASE_URL = ENV_CONFIG[APP_ENV].url;
+const SUPABASE_ANON = ENV_CONFIG[APP_ENV].anon;
+if (APP_ENV === 'staging') {
+  document.addEventListener('DOMContentLoaded', () => {
+    const r = document.createElement('div');
+    r.id = 'env-ribbon';
+    r.textContent = 'STAGING — test data only, safe to experiment';
+    r.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;color:#fff;text-align:center;font:600 12px/22px ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;pointer-events:none;';
+    document.body.appendChild(r);
+    document.body.style.paddingTop = '22px';
+  });
+}
 let sb = null;
 function client(){ if(!sb && window.supabase) sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON); return sb; }
 
