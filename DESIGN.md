@@ -382,3 +382,23 @@ For Claude Cowork Marketing System:
 **Last Updated:** 2026-07-09
 
 For brand questions or new components, **match this DESIGN.md** and use `polly_debrief_form.html` as the reference implementation, with the real logos in `STURIJ_BRAND_ASSETS/`. There is **no audit gate or design-system page** here — consistency comes from following the file, not from machinery.
+
+---
+
+## Skin decision — 21 Jul 2026 (Mark, in session)
+
+The warm-paper Sturij skin is **no longer a mandate for the marketing app**. Mark's call: the
+app is being shared for wider feedback and should read as a considered, user-focused product
+UI (reference: ramp.com — white, near-black ink, confident primary actions, labelled side-nav).
+
+Implementation is **token-based, per Mark's requirement that the shell be reskinnable**:
+all fonts/colours/chrome flow through CSS custom properties, and complete looks are named
+skins on `<html data-skin>`:
+
+- `product` (default) — the Ramp-direction UI
+- `sturij` — the original warm-paper look, fully preserved
+
+Flip with `?skin=sturij` / `?skin=product` (persists locally). This is a *deliberate,
+owner-decided* change — the anti-drift intent of CLAUDE.md rule 4 is preserved by having
+exactly one canonical token set per skin, changed on purpose, in one place. Rule 4's wording
+in CLAUDE.md is Mark's to amend.
