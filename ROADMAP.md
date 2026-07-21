@@ -2,7 +2,7 @@
 
 Living document. Update by hand when status changes materially — same discipline as
 `CLAUDE.md` rule 6: trust what's actually true, not what was true last time someone wrote it
-down. Last updated: 10 July 2026.
+down. Last updated: 21 July 2026 (next-revision sprints 0–5 built on `develop`/staging — see CHANGELOG 'Unreleased').
 
 Organised by how real each thing is, not by how exciting it is. "Done" means verified, not
 claimed.
@@ -17,7 +17,7 @@ claimed.
 | Groups with real URLs confirmed | 29 of 272 (1 direct link + 28 via search, all verified) |
 | Groups with full official rules captured | 2 of 272 (Wetherby Grumbler, Boston Spa Grumbler) |
 | Group Ledger tool | Built, working, tested — title-casing, tags, tone slider, image picker, posting-day rules, batch area-research all live |
-| Database (Supabase) | Spec written (`GROUP_LEDGER_SCHEMA.md`), **not implemented** |
+| Database (Supabase) | **Live** — prod (`xscvfzfeepiakudshtod`) + isolated staging (`srezefvaahdiiczakadx`); schema consolidated in `supabase/migrations/` |
 | Reply Drafter | **Not built** — blocked on Polly's real verbatim replies |
 | Post Composer | Concept only, discussed in chat, not specced formally |
 | `CLAUDE.md` / governance | Compiled and correct in this session's working copy; a separate accidental overwrite happened in the repo (portable template mistake) — **restore not yet independently confirmed** |

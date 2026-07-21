@@ -419,6 +419,7 @@
     <p class="sub">Live from Supabase — who to reach, what's safe, what to say. Post by hand, tracked here.</p>
     <div id="banRisk"></div>
     <div class="grid stat-row" id="dashStats"><div class="loading">Loading live data…</div></div>
+    <div id="perfCard" style="margin-top:22px"></div>
     <div class="section-label">Top reach — green tier</div>
     <div class="card"><table><thead><tr><th>Group</th><th>Area</th><th>Views</th><th>Impressions</th></tr></thead><tbody id="dashLeaders"></tbody></table></div>
 
@@ -470,7 +471,7 @@
 
   <!-- PLANNED ADVERT VIEWER -->
   <div class="dveil" id="pvVeil"></div>
-  <aside class="drawer" id="pvDrawer" aria-hidden="true">
+  <aside class="drawer" id="pvDrawer" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="drawer-head"><div><div class="kicker" id="pvKick">Planned advert</div><h2 id="pvName"></h2></div><button class="dx" id="pvClose" aria-label="Close">✕</button></div>
     <div class="drawer-body" id="pvBody"></div>
   </aside>
@@ -765,7 +766,7 @@
 
 <!-- ============ GROUP DETAIL DRAWER ============ -->
 <div class="dveil" id="dveil"></div>
-<aside class="drawer" id="drawer" aria-hidden="true">
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="drawer-head">
     <div><div class="kicker" id="gdKick">Group</div><h2 id="gdName"></h2></div>
     <button class="dx" id="gdClose" aria-label="Close">✕</button>
@@ -926,7 +927,7 @@ async function handleSession(session){
   veil.classList.add('hide');
   if(!loaded){ loaded=true; loadAll(); }
 }
-function showGate(){ veil.classList.remove('hide'); }
+function showGate(){ if(loaded && authmsg && !authmsg.textContent) authmsg.textContent='Your session ended \u2014 sign in again to carry on (nothing is lost).'; veil.classList.remove('hide'); }
 
 document.getElementById('gsignin').addEventListener('click', async ()=>{
   const c=client(); if(!c) return;
@@ -971,7 +972,7 @@ async function loadAll(){
     state.templates = (tm.data||[]).sort((a,b)=>a.sort-b.sort); state.compositions = co.data||[]; state.scheduled = sp.data||[]; state.themes = (th.data||[]).sort((a,b)=>a.sort-b.sort||String(a.category).localeCompare(String(b.category)));
     state.videos = (vd.data||[]).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
     renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPostBrowser(); renderPostCockpit(); renderDNA(); renderSupport(); renderPhotos(); renderMontage(); renderAudit(); renderRun(); renderSchedules(); renderThemes(); renderVideos();
-    renderGuides(); renderDemoCard(); loadTesters();
+    renderGuides(); renderDemoCard(); loadTesters(); renderPerfCard();
   }catch(e){
     document.getElementById('dashStats').innerHTML=
       '<div class="err" style="grid-column:1/-1"><b>Couldn’t reach the database.</b> Check your connection, then <button onclick="loadAll()">retry</button>.</div>';
@@ -1065,7 +1066,7 @@ function renderGroups(){
     const list=buckets[k].sort(tsort);
     const gr=list.filter(g=>g.tier==='green').length, am=list.filter(g=>g.tier==='amber').length, rd=list.filter(g=>g.tier==='red').length;
     const noLink=list.filter(g=>!hasUrl(g)).length;
-    return `<div class="gacc"><div class="gacc-h">
+    return `<div class="gacc"><div class="gacc-h" role="button" tabindex="0">
       <svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
       <span class="gacc-name">${esc(k)}</span>
       <span class="gacc-stat">${noLink?`<span class="gpill red">⚠ ${noLink} no link</span>`:''}<span class="gpill neutral">${list.length}</span>${gr?`<span class="gpill green"><span class="dot green"></span>${gr}</span>`:''}${am?`<span class="gpill amber"><span class="dot amber"></span>${am}</span>`:''}${rd?`<span class="gpill red"><span class="dot red"></span>${rd}</span>`:''}</span>
@@ -1225,7 +1226,7 @@ function renderSafety(){
     ||'<tr><td colspan="5" class="muted">No restrictions logged.</td></tr>';
   const arch=state.archived||[], ab=document.getElementById('safArchived');
   if(ab) ab.innerHTML=`<div class="section-label">Archived groups</div>`
-    +(arch.length?`<div class="gacc"><div class="gacc-h"><svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg><span class="gacc-name">Archived</span><span class="gacc-stat"><span class="gpill neutral">${arch.length}</span></span></div>
+    +(arch.length?`<div class="gacc"><div class="gacc-h" role="button" tabindex="0"><svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg><span class="gacc-name">Archived</span><span class="gacc-stat"><span class="gpill neutral">${arch.length}</span></span></div>
       <div class="gacc-b"><div class="card" style="padding:6px">${arch.slice().sort((a,b)=>String(b.archived_at||'').localeCompare(String(a.archived_at||''))).map(g=>`<div class="pk"><span class="dot ${g.tier}"></span><span class="nm">${esc(g.name)}</span><span class="a">${esc(g.area||'')}</span><button class="btn-sm" data-restore="${esc(g.id)}" style="margin-left:auto">Restore</button></div>`).join('')}</div></div></div>`
       :`<div class="next-note">No archived groups. You can archive a group from its detail drawer (Edit info → Archive).</div>`);
 }
@@ -1353,7 +1354,7 @@ function renderPostCockpit(){
       <div>
         <div class="section-label" style="margin:0 0 8px">Preview</div>
         ${postPreview()}
-        <div style="margin-top:14px"><button class="btn btn-pri" data-pc="posted" style="height:44px;width:100%">Posted ✓ — log it</button></div>
+        <div style="margin-top:14px"><label class="mz-zoom" style="margin-bottom:8px;display:flex">Posting as <input id="pcAcct" class="search" style="height:32px" value="${esc(postingAs())}" title="Which Facebook account will paste this \u2014 recorded in the log"></label><div style="margin-top:14px"><button class="btn btn-pri" data-pc="posted" style="height:44px;width:100%">Posted ✓ — log it</button></div>
       </div>
     </div>
     <div id="postSaveMsg" style="margin-top:12px"></div>
@@ -1388,7 +1389,7 @@ async function postPosted(){ const g=post.group, msg=document.getElementById('po
     const sp=post.sched||schedFor(g);
     if(sp&&post.mode!=='ab') await rpSaveContent(sp, selectedCopy());   // the logged job keeps its final copy
     const compIds=post.images.filter(im=>im&&im.id).map(im=>im.id);
-    const { data:logged, error }=await c.rpc('log_posted',{ p_group_id:g.id, p_group_name:g.name, p_variation:variation, p_content_hash:content_hash, p_image_ref:image_ref, p_account:state.account, p_scheduled_id:sp?sp.id:null, p_composition_ids:compIds.length?compIds:null });
+    const { data:logged, error }=await c.rpc('log_posted',{ p_group_id:g.id, p_group_name:g.name, p_variation:variation, p_content_hash:content_hash, p_image_ref:image_ref, p_account:postingAs()||state.account, p_scheduled_id:sp?sp.id:null, p_composition_ids:compIds.length?compIds:null });
     if(error) throw error;
     state.posts.push(logged||{ group_id:g.id, posted_on:todayStr(), source:'app' });
     if(sp) sp.status='posted';
@@ -1421,7 +1422,11 @@ function wirePostCockpit(){ const box=document.getElementById(post.mount||'postC
     else if(a==='pip') openComposerPaste(); }));
   const tone=document.getElementById('pcTone');
   if(tone){ tone.addEventListener('input',()=>{ const l=document.getElementById('pcToneLab'); if(l) l.textContent=postToneLabel(tone.value); });
-    tone.addEventListener('change',async()=>{ g.tone=+tone.value; try{ const c=client(); if(c) await c.from('groups').update({tone:g.tone}).eq('id',g.id); }catch(e){} showToast('Tone saved — Remix to apply'); }); }
+    tone.addEventListener('change',async()=>{ g.tone=+tone.value;
+      try{ const c=client(); const { error }=await c.from('groups').update({tone:g.tone}).eq('id',g.id); if(error) throw error; showToast('Tone saved — Remix to apply'); }
+      catch(e){ showToast('Couldn\u2019t save the tone — '+(e.message||'try again')); } }); }
+  const acct=document.getElementById('pcAcct');
+  if(acct) acct.addEventListener('change',()=>{ setPostingAs(acct.value.trim()); showToast('Posting as \u201c'+(acct.value.trim()||state.account)+'\u201d'); });
   const themeSel=document.getElementById('pcTheme');
   if(themeSel) themeSel.addEventListener('change',()=>{ post.themeId=themeSel.value; showToast(post.themeId?'Theme set — Remix to apply':'Theme cleared'); });
 }
@@ -1453,7 +1458,7 @@ function renderPostBrowser(){
   const buckets={}; state.groups.forEach(g=>{ const k=keyer(g); (buckets[k]=buckets[k]||[]).push(g); });
   const keys=Object.keys(buckets).sort((a,b)=>buckets[b].length-buckets[a].length);
   box.innerHTML=keys.map(k=>{ const list=buckets[k].sort(tsort), greens=list.filter(g=>g.tier==='green').length;
-    return `<div class="gacc"><div class="gacc-h"><svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg><span class="gacc-name">${esc(k)}</span><span class="gacc-stat"><span class="gpill neutral">${list.length}</span>${greens?`<span class="gpill green"><span class="dot green"></span>${greens}</span>`:''}</span></div><div class="gacc-b"><div style="padding:2px">${list.map(postGroupRow).join('')}</div></div></div>`;
+    return `<div class="gacc"><div class="gacc-h" role="button" tabindex="0"><svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg><span class="gacc-name">${esc(k)}</span><span class="gacc-stat"><span class="gpill neutral">${list.length}</span>${greens?`<span class="gpill green"><span class="dot green"></span>${greens}</span>`:''}</span></div><div class="gacc-b"><div style="padding:2px">${list.map(postGroupRow).join('')}</div></div></div>`;
   }).join('');
 }
 (function(){
@@ -1686,7 +1691,7 @@ function photoCard(p){
   </div>`;
 }
 function photoGaccHead(name, count, uncleared){
-  return `<div class="gacc-h"><svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+  return `<div class="gacc-h" role="button" tabindex="0"><svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
     <span class="gacc-name">${esc(name)}</span>
     <span class="gacc-stat"><span class="gpill neutral">${count}</span>${uncleared?`<span class="gpill red"><span class="dot red"></span>${uncleared}</span>`:''}</span></div>`;
 }
@@ -2493,7 +2498,7 @@ function renderAudit(){
   box.innerHTML=keys.map(k=>{
     const list=buckets[k].sort((a,b)=>({red:0,amber:1}[auditStatus(a)]-{red:0,amber:1}[auditStatus(b)])||((b.fb_views||0)-(a.fb_views||0)));
     const red=list.filter(g=>auditStatus(g)==='red').length, amber=list.length-red;
-    return `<div class="gacc"><div class="gacc-h">
+    return `<div class="gacc"><div class="gacc-h" role="button" tabindex="0">
       <svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
       <span class="gacc-name">${esc(k)}</span>
       <span class="gacc-stat">${red?`<span class="gpill red"><span class="dot red"></span>${red}</span>`:''}${amber?`<span class="gpill amber"><span class="dot amber"></span>${amber}</span>`:''}</span>
@@ -2738,7 +2743,7 @@ function renderReadyToPost(){
   const keys=Object.keys(byDate).sort();
   box.innerHTML=keys.map((k,idx)=>{
     const list=byDate[k], drafted=list.filter(s=>s.content).length;
-    return `<div class="gacc${idx===0?' open':''}"><div class="gacc-h">
+    return `<div class="gacc${idx===0?' open':''}"><div class="gacc-h" role="button" tabindex="0">
       <svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
       <span class="gacc-name">${esc(planDateLabel(k))}</span>
       <span class="gacc-stat"><span class="gpill neutral">${list.length} job${list.length===1?'':'s'}</span>${drafted?`<span class="gpill green"><span class="dot green"></span>${drafted} drafted</span>`:''}</span>
@@ -2748,7 +2753,9 @@ function renderReadyToPost(){
 async function rpSaveContent(s,content){
   s.content=content;
   if(!s.id) return;                       // ad-hoc paste-window jobs aren't queue rows
-  const c=client(); if(!c) return; try{ await c.from('scheduled_posts').update({content}).eq('id',s.id); }catch(e){}
+  const c=client(); if(!c) return;
+  try{ const { error }=await c.from('scheduled_posts').update({content}).eq('id',s.id); if(error) throw error; }
+  catch(e){ showToast('Couldn\u2019t save the copy \u2014 it will retry next edit'); }
 }
 async function rpDraft(s,card){
   const g=state.groups.find(x=>x.id===s.group_id); if(!g){ showToast('Group not found'); return; }
@@ -2769,7 +2776,7 @@ async function rpPosted(s){
   if(!content.trim()){ showToast('Write or draft the copy first — can’t log an empty post.'); return false; }
   if(rpPosted._busy) return false; rpPosted._busy=true;
   try{
-    const { data:logged, error }=await c.rpc('log_posted',{ p_group_id:g.id, p_group_name:g.name, p_variation:'A', p_content_hash:phash(content), p_image_ref:s.image_ref||null, p_account:state.account, p_scheduled_id:s.id||null, p_composition_ids:s.composition_id?[s.composition_id]:null });
+    const { data:logged, error }=await c.rpc('log_posted',{ p_group_id:g.id, p_group_name:g.name, p_variation:'A', p_content_hash:phash(content), p_image_ref:s.image_ref||null, p_account:postingAs()||state.account, p_scheduled_id:s.id||null, p_composition_ids:s.composition_id?[s.composition_id]:null });
     if(error) throw error;
     state.posts.push(logged||{ group_id:g.id, posted_on:todayStr(), source:'app' });
     if(s.id) s.status='posted';
@@ -2886,7 +2893,7 @@ function renderThemes(){
   const box=document.getElementById('thBody'); if(!box) return;
   if(!state.themes.length){ box.innerHTML='<div class="next-note">No themes yet — add your first above.</div>'; return; }
   const byCat={}; state.themes.forEach(t=>{ (byCat[t.category||'Uncategorised']=byCat[t.category||'Uncategorised']||[]).push(t); });
-  box.innerHTML=Object.keys(byCat).map(cat=>`<div class="gacc open"><div class="gacc-h"><svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg><span class="gacc-name">${esc(cat)}</span><span class="gacc-stat"><span class="gpill neutral">${byCat[cat].length}</span></span></div>
+  box.innerHTML=Object.keys(byCat).map(cat=>`<div class="gacc open"><div class="gacc-h" role="button" tabindex="0"><svg class="gacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg><span class="gacc-name">${esc(cat)}</span><span class="gacc-stat"><span class="gpill neutral">${byCat[cat].length}</span></span></div>
     <div class="gacc-b">${byCat[cat].map(t=>`<div class="ag-item"><div class="ag-item-h"><span class="ag-item-nm">${esc(t.subcategory||t.category)}</span><button class="btn-sm" data-thedit="${esc(t.id)}">Edit</button><button class="btn-sm" data-thdel="${esc(t.id)}">Delete</button></div>${t.description?`<div class="v" style="font-size:13.5px">${esc(t.description)}</div>`:'<div class="v empty">No description</div>'}</div>`).join('')}</div></div>`).join('');
 }
 async function saveTheme(){
@@ -2930,7 +2937,55 @@ async function thTry(){
   const go=document.getElementById('thTryGo'); if(go) go.addEventListener('click',thTry);
 })();
 
-function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+
+/* ============ Sprint 5: posting-as, performance follow-up, keyboard access ============ */
+function postingAs(){ try{ return localStorage.getItem('sturij-posting-as')||state.account||''; }catch(e){ return state.account||''; } }
+function setPostingAs(v){ try{ localStorage.setItem('sturij-posting-as', v); }catch(e){} }
+
+/* two days on, ask how each post did — the answer teaches the group's reach */
+function perfPending(){
+  const cutoff=new Date(Date.now()-2*86400000).toLocaleDateString('en-CA',{timeZone:'Europe/London'});
+  return state.posts.filter(p=>p&&p.source==='app'&&p.id&&!p.perf_checked_at&&p.posted_on&&p.posted_on<=cutoff).slice(0,3);
+}
+function renderPerfCard(){
+  const el=document.getElementById('perfCard'); if(!el) return;
+  const rows=perfPending();
+  if(!rows.length){ el.innerHTML=''; return; }
+  el.innerHTML=`<div class="card"><div class="section-label" style="margin:0 0 6px">How did they do?</div>
+    <p class="sub" style="margin:0 0 10px">Posts from 2+ days ago. Grab the numbers from Facebook \u2014 each answer updates that group\u2019s real reach, so the tiers learn from results instead of guesses.</p>
+    ${rows.map(p=>`<div class="tester-row" data-perf="${esc(p.id)}"><span class="em">${esc(p.group_name||'')}</span><span class="rl">${esc(p.posted_on)}</span>
+      <span style="margin-left:auto"></span>
+      <input type="number" min="0" placeholder="views" data-pv style="width:90px">
+      <input type="number" min="0" placeholder="likes + comments" data-pe style="width:130px">
+      <button class="btn-sm" data-psave>Save</button>
+      <button class="btn-sm" data-pskip title="No numbers available">Skip</button></div>`).join('')}</div>`;
+  el.querySelectorAll('[data-psave],[data-pskip]').forEach(b=>b.onclick=async ()=>{
+    const row=b.closest('[data-perf]'); const p=state.posts.find(x=>x.id===row.dataset.perf); if(!p) return;
+    const skip=b.hasAttribute('data-pskip');
+    const v=parseInt(row.querySelector('[data-pv]').value,10), e2=parseInt(row.querySelector('[data-pe]').value,10);
+    if(!skip && isNaN(v) && isNaN(e2)){ showToast('Enter at least one number \u2014 or Skip'); return; }
+    b.disabled=true;
+    try{
+      const c=client();
+      const patch={ perf_views:(skip||isNaN(v))?null:v, perf_engagement:(skip||isNaN(e2))?null:e2, perf_checked_at:new Date().toISOString() };
+      const { error }=await c.from('posting_log').update(patch).eq('id',p.id); if(error) throw error;
+      Object.assign(p,patch);
+      if(!skip && p.group_id && !isNaN(v)){
+        const g=state.groups.find(x=>x.id===p.group_id);
+        if(g){ const up={ fb_views:v, fb_engagement:isNaN(e2)?g.fb_engagement:e2, fb_measured_at:new Date().toISOString(), fb_source:'post follow-up' };
+          const r2=await c.from('groups').update(up).eq('id',g.id); if(!r2.error) Object.assign(g,up); }
+      }
+      showToast(skip?'Skipped':'Saved \u2713 \u2014 group reach updated'); renderPerfCard(); renderDash();
+    }catch(err){ showToast('Couldn\u2019t save \u2014 '+(err.message||'failed')); b.disabled=false; }
+  });
+}
+
+/* keyboard: accordions act like buttons */
+document.addEventListener('keydown', e=>{
+  if((e.key==='Enter'||e.key===' ') && e.target && e.target.classList && e.target.classList.contains('gacc-h')){ e.preventDefault(); e.target.click(); }
+});
 
 /* ============ Sprint 2: guide panels ============
    A one-strip explanation at the top of each page: what it's for, the happy
