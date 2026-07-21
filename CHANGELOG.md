@@ -2,6 +2,17 @@
 
 A running record of what has shipped to `main` (auto-deploys via Vercel), reading the live Supabase database (`xscvfzfeepiakudshtod`). Newest first. Human posts, human merges — nothing auto-posts.
 
+## Unreleased — 21 Jul 2026 · The next revision (on `develop` / staging only)
+
+Built against the **isolated staging environment** (staging.marketing.sturij.com → Supabase `srezefvaahdiiczakadx`); production and its data are untouched. `main` is branch-protected; everything below lands via reviewed PRs into `develop` and ships to production only when Mark promotes it — after the architect review gate for anything touching real posting.
+
+- **Sprint 0 — rails** (#40): hostname-based environment switch (only marketing.sturij.com talks to prod), STAGING ribbon, consolidated baseline schema in `supabase/migrations/` (the repo previously held 1 of 20 applied migrations), Edge Function sources tracked in `supabase/functions/`.
+- **Sprint 1 — guardrails become facts** (#41): the 12/day cap, 14-day cooldown (all history, incl. reconstructed), posting-day rules and Europe/London date validity are enforced by a Postgres trigger + unique index; `log_posted()` makes Posted ✓ transactional; "today" is computed per-call in Europe/London; AI-fallback drafts are visibly badged; empty-copy logging blocked; posting_log fetches date-windowed.
+- **Sprint 2 — tester release** (#42): `approved_users` table drives RLS/storage/Edge-Function access (add a tester from Support → no redeploy); staging-only `seed-demo` with Load/Reset demo data; dismissible guide panels with a global toggle (on in staging); floating tester feedback into AI-triaged tickets.
+- **Sprint 3 — one composer** (#43): the Post cockpit is the single drafting surface, mounted in Post, in the Run's current step, and from Plan-queue cards; drafted copy persists to `scheduled_posts.content` and is read back everywhere; paste window available from the composer; ~120 lines of divergent Run logic deleted.
+- **Sprint 4 — six-tab workspace** (#44): Today (Overview · Plan · Run) · Post · Library · Groups (+ Needs data) · Brand · Safety & Support, with legacy names redirecting; Save advert offers Schedule / Post now / Done; dead-end empty states became buttons; needs-data banner + tier legend; "Add to queue" everywhere.
+- **Sprint 5 — trust & learning** (#45): post-performance follow-up ("How did they do?" two days on → updates the group's real reach), "Posting as" capture on the composer (which Facebook account pasted — recorded per log row), save-failure surfacing (tone/copy), session-expiry message, `esc()` hardening, keyboard-accessible accordions + dialog roles.
+
 ## v1.0 — 12 Jul 2026 · V1 Workspace live
 
 The full six-tab workspace is on `main` — **Dashboard · Groups · Plan · Post · DNA · Safety** — over the live 273-group ledger.
