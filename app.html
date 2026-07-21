@@ -357,6 +357,21 @@
     h1{font-size:27px} .stat-row{grid-template-columns:repeat(2,1fr)!important}
     .card{overflow-x:auto}
   }
+  /* ---- Sprint 2: guide panels, demo card, testers, feedback ---- */
+  .hero{border:1px dashed var(--gold);background:var(--card);border-radius:12px;padding:14px 18px;margin:0 0 20px;display:flex;gap:14px;align-items:flex-start;box-shadow:var(--shadow-card);font-size:13.5px;color:var(--ink-body)}
+  .hero b{color:var(--ink-dark)}
+  .hero .steps{margin-top:4px;color:var(--ink-body)}
+  .hero .cta{margin-top:10px}
+  .hero .hx{margin-left:auto;background:none;border:none;color:var(--ink-muted);cursor:pointer;font-size:15px;line-height:1;padding:2px 4px;flex:none}
+  .hero .hx:hover{color:var(--gold)}
+  .fb-float{position:fixed;right:18px;bottom:18px;z-index:9998;padding:10px 18px;border-radius:24px;border:1px solid var(--gold);background:var(--card);color:var(--ink-dark);cursor:pointer;box-shadow:var(--shadow-card);font-weight:600;font-size:13px}
+  .fb-float:hover{color:var(--gold)}
+  .fb-modal{position:fixed;right:18px;bottom:66px;z-index:9999;width:min(92vw,340px);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:var(--shadow-card)}
+  .fb-modal textarea{width:100%;min-height:90px;margin-top:8px}
+  .tester-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px}
+  .tester-row .em{font-weight:600;color:var(--ink-dark)}
+  .tester-row .rl{color:var(--ink-muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .tester-row .off{color:var(--danger);font-size:12px}
 </style>
 </head>
 <body>
@@ -390,6 +405,7 @@
   </div>
   <div class="who">Signed in · <b id="whoName">—</b></div>
   <button class="signout" id="signout">Sign out</button>
+  <button class="themeb" id="guideBtn" title="Show or hide the page guides">Guide</button>
   <button class="themeb" id="tt">Theme</button>
 </div>
 
@@ -854,16 +870,26 @@ async function initAuth(){
   handleSession(session);
   c.auth.onAuthStateChange((_e, s)=>handleSession(s));
 }
-function handleSession(session){
+async function handleSession(session){
   const user = session && session.user;
   if(!user){ showGate(); return; }
   const email=(user.email||'').toLowerCase();
-  if(!ALLOWED.includes(email)){
+  /* Sprint 2: the allowlist lives in the approved_users table (add testers from
+     the Support tab — no redeploy). The hardcoded ALLOWED pair above is only the
+     fallback for environments where the table doesn't exist yet. */
+  let role=null;
+  try{
+    const { data, error } = await client().from('approved_users').select('role').eq('email',email).eq('active',true).maybeSingle();
+    if(!error && data && data.role) role=data.role;
+    else if(error) role = ALLOWED.includes(email) ? 'owner' : null;   // table missing → legacy list
+  }catch(e){ role = ALLOWED.includes(email) ? 'owner' : null; }
+  if(!role){
     authmsg.innerHTML=`<b>${esc(email)}</b> isn’t on the approved list. `+
       `<a href="#" id="sout">Sign out</a> and try another account.`;
     const so=document.getElementById('sout'); if(so) so.onclick=async e=>{ e.preventDefault(); await client().auth.signOut(); };
     showGate(); return;
   }
+  state.role = role;
   const name = (user.user_metadata && (user.user_metadata.full_name||user.user_metadata.name)) || email;
   state.account = name;
   document.getElementById('whoName').textContent = name;
@@ -915,6 +941,7 @@ async function loadAll(){
     state.templates = (tm.data||[]).sort((a,b)=>a.sort-b.sort); state.compositions = co.data||[]; state.scheduled = sp.data||[]; state.themes = (th.data||[]).sort((a,b)=>a.sort-b.sort||String(a.category).localeCompare(String(b.category)));
     state.videos = (vd.data||[]).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
     renderDash(); renderGroups(); renderPlan(); renderSafety(); renderCapMeter(); renderPostBrowser(); renderPostCockpit(); renderDNA(); renderSupport(); renderPhotos(); renderMontage(); renderAudit(); renderRun(); renderSchedules(); renderThemes(); renderVideos();
+    renderGuides(); renderDemoCard(); loadTesters();
   }catch(e){
     document.getElementById('dashStats').innerHTML=
       '<div class="err" style="grid-column:1/-1"><b>Couldn’t reach the database.</b> Check your connection, then <button onclick="loadAll()">retry</button>.</div>';
@@ -2887,6 +2914,185 @@ async function thTry(){
 })();
 
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ============ Sprint 2: guide panels ============
+   A one-strip explanation at the top of each page: what it's for, the happy
+   path, one primary action. Global toggle in the header ("Guide"), per-page
+   dismiss, remembered locally. Default: ON in staging, OFF in production. */
+const GUIDE = {
+  'Dashboard': { what:'Your overview — how much is safe to post today and how the groups are doing.',
+                 steps:'Check the cap → glance at the top groups → head to Run for today’s queue.', cta:['Start today’s run','Run'] },
+  'Groups':    { what:'Every Facebook group you’re a member of, with its safety tier, link and rules.',
+                 steps:'Search or browse → click a group to edit its details. Green = proven reach · Amber = untested · Red = strict/risky.', cta:['Fix missing data','Audit'] },
+  'Audit':     { what:'The self-emptying to-do list — only groups missing a link or a posting rule appear here.',
+                 steps:'Paste your Facebook “Groups you’ve joined” list into the bulk importer to fill links fast → set posting rules → watch this list shrink to zero.' },
+  'Plan':      { what:'Build a queue of posts for today — safest groups first, every guardrail applied.',
+                 steps:'Add safe groups to the queue → draft the copy → paste on Facebook by hand → tick Posted ✓.' },
+  'Run':       { what:'The guided way to work through today’s posts, one group at a time.',
+                 steps:'Draft with AI → copy → post by hand on Facebook → Posted ✓ → next group. The app never posts for you.' },
+  'Post':      { what:'Post to one specific group — same drafting, same guardrails as the queue.',
+                 steps:'Pick a group → Draft 3 with AI → choose and edit one → copy → log it once you’ve posted.' },
+  'DNA':       { what:'The brand voice and facts the AI writer reads before drafting anything.',
+                 steps:'Edit any field and it saves live — the next draft uses it immediately.' },
+  'Safety':    { what:'The enforced limits, your restriction history, and why the app sometimes says no.',
+                 steps:'12 posts a day, 14 days between posts to the same group — enforced by the database, not just the screen.' },
+  'Themes':    { what:'Seasonal or campaign steering for the AI writer.',
+                 steps:'Add a theme (e.g. Media Wall → New Media Wall) → pick it when drafting and the copy stays on-theme.' },
+  'Support':   { what:'Spotted a bug or have an idea? Raise it here — nothing gets lost in chat.',
+                 steps:'Give it a short title and what you expected to happen. AI triages severity automatically.' },
+  'Photos':    { what:'Your real project photos — private until you clear each one for public use by hand.',
+                 steps:'Upload → tag → clear for public use → build adverts from cleared photos in Montage.', cta:['Make an advert','Montage'] },
+  'Montage':   { what:'Compose cleared photos into a finished advert image.',
+                 steps:'Pick a layout → drop a photo in each cell → nudge and zoom → save the advert.' },
+};
+const GUIDE_LS='sturij-guide', GUIDE_DIS='sturij-guide-dismissed';
+function guideOn(){ try{ const v=localStorage.getItem(GUIDE_LS); if(v) return v==='on'; }catch(e){} return APP_ENV==='staging'; }
+function guideDismissed(){ try{ return JSON.parse(localStorage.getItem(GUIDE_DIS)||'[]'); }catch(e){ return []; } }
+function guideReadiness(){
+  if(!state.groups || !state.groups.length) return '';
+  const ready=state.groups.filter(g=>g.url).length, total=state.groups.length;
+  return `<div class="steps">Data readiness: <b>${ready}/${total}</b> groups have a link${ready<total?' — the bulk importer in Audit is the fastest fix':''}.</div>`;
+}
+function renderGuides(){
+  document.querySelectorAll('.hero:not(#demoCard)').forEach(h=>h.remove());
+  const btn=document.getElementById('guideBtn'); if(btn) btn.textContent='Guide: '+(guideOn()?'on':'off');
+  if(!guideOn()) return;
+  const dis=guideDismissed();
+  document.querySelectorAll('.panel').forEach(p=>{
+    const key=p.dataset.panel, g=GUIDE[key];
+    if(!g || dis.includes(key)) return;
+    const d=document.createElement('div'); d.className='hero';
+    d.innerHTML=`<div><b>${esc(g.what)}</b>`+
+      (g.steps?`<div class="steps">${esc(g.steps)}</div>`:'')+
+      (key==='Dashboard'?guideReadiness():'')+
+      (g.cta?`<div class="cta"><button class="btn-sm" data-goto="${esc(g.cta[1])}">${esc(g.cta[0])} →</button></div>`:'')+
+      `</div><button class="hx" data-hx="${esc(key)}" title="Hide this guide">✕</button>`;
+    p.prepend(d);
+  });
+}
+document.addEventListener('click', e=>{
+  const hx=e.target.closest('.hero .hx'); if(hx && hx.dataset.hx){ const d=guideDismissed(); if(!d.includes(hx.dataset.hx)) d.push(hx.dataset.hx); try{ localStorage.setItem(GUIDE_DIS, JSON.stringify(d)); }catch(err){} renderGuides(); return; }
+  const go=e.target.closest('[data-goto]'); if(go) showTab(go.dataset.goto);
+});
+(function(){ const gb=document.getElementById('guideBtn'); if(!gb) return;
+  gb.textContent='Guide: '+(guideOn()?'on':'off');
+  gb.addEventListener('click', ()=>{ try{ localStorage.setItem(GUIDE_LS, guideOn()?'off':'on'); localStorage.removeItem(GUIDE_DIS); }catch(e){} renderGuides(); });
+})();
+
+/* ============ Sprint 2: demo data (staging only) ============ */
+function renderDemoCard(){
+  if(APP_ENV!=='staging') return;
+  let el=document.getElementById('demoCard');
+  if(el) el.remove();
+  const p=document.querySelector('.panel[data-panel="Dashboard"]'); if(!p) return;
+  el=document.createElement('div'); el.id='demoCard'; el.className='hero';
+  const empty=!state.groups || !state.groups.length;
+  el.innerHTML=`<div><b>Demo data</b><div class="steps">${empty
+      ?'This staging workspace is empty. Load the shared test dataset — 40 fictional groups, photos, adverts and a realistic posting history — so there’s something to test against.'
+      :'Reset puts the shared test dataset back to its known starting state (everything here is fictional and safe to break).'}</div>
+    <div class="cta">${empty?'<button class="btn-sm" id="demoLoad">Load demo data</button>':''}<button class="btn-sm" id="demoReset" style="margin-left:${empty?'8px':'0'}">Reset demo data</button></div></div>`;
+  const heroFirst=p.querySelector('.hero:not(#demoCard)');
+  if(heroFirst) heroFirst.after(el); else p.prepend(el);
+  const lb=document.getElementById('demoLoad'); if(lb) lb.onclick=()=>demoInvoke('seed', lb);
+  const rb=document.getElementById('demoReset');
+  if(rb) rb.onclick=()=>{
+    if(rb.dataset.arm==='1'){ demoInvoke('reset', rb); return; }
+    rb.dataset.arm='1'; const old=rb.textContent; rb.textContent='Really reset everything? Click again';
+    setTimeout(()=>{ rb.dataset.arm=''; rb.textContent=old; }, 4000);
+  };
+}
+async function demoInvoke(mode, btn){
+  const c=client(); if(!c) return;
+  btn.disabled=true; btn.textContent = mode==='seed' ? 'Loading…' : 'Resetting…';
+  try{
+    const { data, error } = await c.functions.invoke('seed-demo', { body:{ mode } });
+    if(error){ let m=error.message||'failed'; try{ const j=await error.context.json(); if(j&&j.error) m=j.error; }catch(e){} throw new Error(m); }
+    if(!data || data.error) throw new Error((data&&data.error)||'failed');
+    showToast('Demo data ready ✓ — reloading…');
+    setTimeout(()=>location.reload(), 800);
+  }catch(err){ showToast('Demo data: '+(err.message||'failed')); btn.disabled=false; renderDemoCard(); }
+}
+
+/* ============ Sprint 2: testers admin (owners only) ============ */
+async function loadTesters(){
+  if(state.role!=='owner') return;
+  const c=client(); if(!c) return;
+  try{
+    const { data, error } = await c.from('approved_users').select('*').order('created_at');
+    if(error) return;                       // table missing (e.g. production) — panel simply doesn't show
+    state.testers = data||[];
+    renderTesters();
+  }catch(e){}
+}
+function renderTesters(){
+  const p=document.querySelector('.panel[data-panel="Support"]'); if(!p) return;
+  let card=document.getElementById('testersCard');
+  if(!card){
+    card=document.createElement('div'); card.id='testersCard'; card.className='card'; card.style.marginBottom='22px';
+    const firstCard=p.querySelector('.card'); if(firstCard) firstCard.before(card); else p.appendChild(card);
+  }
+  const rows=(state.testers||[]).map(u=>`
+    <div class="tester-row">
+      <span class="em">${esc(u.email)}</span>
+      <span class="rl">${esc(u.role)}</span>
+      ${u.active?'':'<span class="off">deactivated</span>'}
+      <span style="margin-left:auto"></span>
+      ${u.role==='owner'?'':`<button class="btn-sm" data-tact="${esc(u.email)}" data-tset="${u.active?'0':'1'}">${u.active?'Deactivate':'Reactivate'}</button>`}
+    </div>`).join('');
+  card.innerHTML=`<div class="section-label" style="margin:0 0 6px">Testers &amp; access</div>
+    <p class="sub" style="margin:0 0 10px">Who can sign in to this workspace. Add a tester’s Google email and they’re in — no code change needed. They sign in at this site’s address with that Google account.</p>
+    ${rows||'<div class="tester-row" style="color:var(--ink-muted)">No entries.</div>'}
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <input id="tEmail" type="email" placeholder="their.email@gmail.com" style="flex:1;min-width:200px">
+      <select id="tRole"><option value="tester">Tester</option><option value="operator">Operator</option><option value="owner">Owner</option></select>
+      <button class="btn-sm" id="tAdd">Add</button>
+    </div><div id="tMsg" style="margin-top:8px"></div>`;
+  const add=document.getElementById('tAdd');
+  add.onclick=async ()=>{
+    const em=(document.getElementById('tEmail').value||'').trim().toLowerCase();
+    const role=document.getElementById('tRole').value, msg=document.getElementById('tMsg');
+    if(!em || !em.includes('@')){ msg.innerHTML='<div class="err">Enter their Google email address.</div>'; return; }
+    try{
+      const { error } = await client().from('approved_users').insert({ email:em, role, added_by:state.account });
+      if(error) throw error;
+      msg.innerHTML=''; showToast('Added ✓ — they can sign in now'); loadTesters();
+    }catch(err){ msg.innerHTML='<div class="err">'+esc(err.message||'couldn’t add')+'</div>'; }
+  };
+  card.querySelectorAll('[data-tact]').forEach(b=>b.onclick=async ()=>{
+    try{
+      const { error } = await client().from('approved_users').update({ active: b.dataset.tset==='1' }).eq('email', b.dataset.tact);
+      if(error) throw error;
+      loadTesters();
+    }catch(err){ showToast(err.message||'couldn’t update'); }
+  });
+}
+
+/* ============ Sprint 2: floating tester feedback (staging only) ============ */
+(function(){
+  if(APP_ENV!=='staging') return;
+  const b=document.createElement('button'); b.className='fb-float'; b.id='fbBtn'; b.textContent='💬 Feedback';
+  b.onclick=()=>{
+    let m=document.getElementById('fbModal'); if(m){ m.remove(); return; }
+    m=document.createElement('div'); m.className='fb-modal'; m.id='fbModal';
+    m.innerHTML=`<b>Tester feedback</b><div style="color:var(--ink-muted);font-size:12px;margin-top:2px">What happened — and what did you expect instead?</div>
+      <textarea id="fbText" placeholder="e.g. I pressed Posted twice and…"></textarea>
+      <div style="margin-top:8px;display:flex;gap:8px"><button class="btn-sm" id="fbSend">Send</button><button class="btn-sm" id="fbCancel">Cancel</button></div>`;
+    document.body.appendChild(m);
+    document.getElementById('fbCancel').onclick=()=>m.remove();
+    document.getElementById('fbSend').onclick=async ()=>{
+      const txt=(document.getElementById('fbText').value||'').trim(); if(!txt) return;
+      const c=client(); if(!c) return;
+      try{
+        const { data, error } = await c.from('support_tickets').insert({ kind:'feedback', title:txt.slice(0,80), detail:txt, status:'open', reporter:(state.account||'Tester')+' (staging)' }).select().single();
+        if(error) throw error;
+        state.support.unshift(data); if(typeof renderSupport==='function') renderSupport();
+        m.remove(); showToast('Thanks — feedback sent ✓');
+        if(typeof triageTicket==='function') triageTicket(data);
+      }catch(err){ showToast('Couldn’t send — '+(err.message||'failed')); }
+    };
+  };
+  document.body.appendChild(b);
+})();
 </script>
 </body>
 </html>
