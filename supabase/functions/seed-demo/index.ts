@@ -126,7 +126,7 @@ Deno.serve(async (req: Request) => {
     if (mode === "reset") {
       // wipe demo tables (never approved_users / templates)
       for (const t of ["posting_log", "scheduled_posts", "compositions", "photos", "videos", "themes", "dna", "restrictions", "support_tickets", "groups"]) {
-        const { error } = await sb.from(t).delete().gte("created_at", "1970-01-01");
+        const { error } = await sb.from(t).delete().not("id", "is", null);   // dna has no created_at — filter on id
         if (error) throw new Error(`wipe ${t}: ${error.message}`);
       }
       const { data: objs } = await sb.storage.from("photos").list("demo");

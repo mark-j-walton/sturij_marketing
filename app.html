@@ -839,8 +839,12 @@ function showTab(t){
   document.querySelectorAll('.rail-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on', p.dataset.panel===t));
   if(t==='Montage' && typeof mzDraw==='function') setTimeout(mzDraw,0);   // canvas needs a visible width to size correctly
-  if(t==='Run' && typeof renderRun==='function') renderRun();             // (re)build the queue + kick off drafting when opened
-  if(t==='Post' && typeof post!=='undefined' && post.group && !post.drafts.length && !post.loading) loadPostDrafts(post.group,false);
+  if(t==='Run' && typeof renderRun==='function') renderRun();             // (re)build the queue + mount the composer on the current step
+  if(t==='Post' && typeof post!=='undefined'){
+    if(post.mount!=='postCockpit'){ post.mount='postCockpit'; post.group=null; postReset(); }  // composer follows the active tab
+    renderPostCockpit();
+    if(post.group && !post.drafts.length && !post.loading) loadPostDrafts(post.group,false);
+  }
 }
 
 /* ---- theme (from index.html) ---- */
@@ -1228,13 +1232,24 @@ function nextSafeGroup(excludeId){ const o={green:0,amber:1,red:2}; return state
 function showToast(t){ let el=document.getElementById('toast'); if(!el){ el=document.createElement('div'); el.id='toast'; el.className='toast'; document.body.appendChild(el); } el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2600); }
 
 /* ---- Post cockpit v2 (composer at top: AI drafts w/ tone+image-vision, A/B two images) ---- */
-const post={ group:null, drafts:[], locked:[], mode:'post', selCopy:[], images:[null,null], loading:false, picking:-1, themeId:'' };
+/* ============ THE COMPOSER (Sprint 3) ============
+   One way to draft and log a post, everywhere. This state + the renderPostCockpit
+   family is the single composer; it mounts either in the Post tab (#postCockpit)
+   or inside the Run's current step (#runCockpit). post.sched links it to a Plan
+   queue job so drafted copy persists to scheduled_posts.content and is read back. */
+const post={ group:null, sched:null, drafts:[], locked:[], mode:'post', selCopy:[], images:[null,null], loading:false, picking:-1, themeId:'', mount:'postCockpit' };
+function selectedCopy(){ const i=post.selCopy.length?post.selCopy[0]:0; return post.drafts[i]||''; }
 function themeById(id){ return state.themes.find(t=>t.id===id); }
 function themeLabel(t){ return [t.category, t.subcategory].filter(Boolean).join(' · '); }
 function themeOptions(sel){ return `<option value="">No theme</option>`+state.themes.map(t=>`<option value="${esc(t.id)}"${t.id===sel?' selected':''}>${esc(themeLabel(t))}</option>`).join(''); }
 function themePayload(id){ const t=themeById(id); return t?{category:t.category,subcategory:t.subcategory,description:t.description}:null; }
 let postBrowseBy='region';
-function postReset(){ post.drafts=[]; post.locked=[]; post.selCopy=[]; post.mode='post'; post.images=[null,null]; post.loading=false; post.picking=-1; }
+function postReset(){ post.sched=null; post.drafts=[]; post.locked=[]; post.selCopy=[]; post.mode='post'; post.images=[null,null]; post.loading=false; post.picking=-1; }
+function postPreloadSched(g){ // read back copy already drafted for this group's queue job
+  post.sched=schedFor(g)||null;
+  if(post.sched&&post.sched.content){ post.drafts=[post.sched.content,'','']; post.locked=[true,false,false]; post.selCopy=[0]; return true; }
+  return false;
+}
 function postToneLabel(t){ return (['Formal','Measured','Balanced','Warm','Chatty'][(Number(t)||3)-1])||'Balanced'; }
 function lastAppPostDate(g){ return state.posts.filter(p=>p.group_id===g.id).map(p=>p.posted_on).sort().pop(); }
 function notPostedSince(g,months){ const l=lastAppPostDate(g); if(!l) return true; const d=new Date(todayStr()); d.setMonth(d.getMonth()-months); return l < d.toISOString().slice(0,10); }
@@ -1254,7 +1269,16 @@ async function loadPostDrafts(g, remix){
   if(post.usedFallback) warnFallback('postSaveMsg');
 }
 function postSelect(i){ const max=post.mode==='ab'?2:1, pos=post.selCopy.indexOf(i);
-  if(pos>=0) post.selCopy.splice(pos,1); else { if(post.selCopy.length>=max) post.selCopy.shift(); post.selCopy.push(i); } renderPostCockpit(); }
+  if(pos>=0) post.selCopy.splice(pos,1); else { if(post.selCopy.length>=max) post.selCopy.shift(); post.selCopy.push(i); }
+  if(post.sched) rpSaveContent(post.sched, selectedCopy());   // the queue job carries the chosen copy
+  renderPostCockpit(); }
+function openComposerPaste(){
+  const g=post.group; if(!g) return;
+  const copy=selectedCopy();
+  if(!copy.trim()){ showToast('Write or draft the copy first.'); return; }
+  if(post.sched){ post.sched.content=copy; rpSaveContent(post.sched,copy); openPasteWindow(post.sched); }
+  else openPasteWindow({ group_id:g.id, group_name:g.name, content:copy });
+}
 function postImgSlot(s){ const im=post.images[s], lab=post.mode==='ab'?['A','B'][s]:'';
   return `<div style="width:124px"><div class="ph-thumb" style="width:124px;height:124px;margin-bottom:6px">${im?`<img data-spath="${esc(im.thumb_path||'')}" alt="">`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:11px">${lab?lab+' — ':''}no image</div>`}</div>
     <div class="dna-act">${im?`<button class="btn-sm" data-pcimg="${s}">Change</button><button class="btn-sm" data-pcimgx="${s}">✕</button>`:`<button class="btn-sm" data-pcimg="${s}">Add ${lab}</button>`}</div></div>`; }
@@ -1264,8 +1288,12 @@ function postPreview(){ const txt=(post.selCopy.length?post.drafts[post.selCopy[
     ${im?`<img data-spath="${esc(im.thumb_path||'')}" alt="" style="width:100%;display:block;background:#0e1820">`:'<div class="fbcard-img">no image attached</div>'}
     <div class="fbcard-act"><span>👍 Like</span><span>💬 Comment</span><span>↪ Share</span></div></div>`; }
 function renderPostCockpit(){
-  const box=document.getElementById('postCockpit'); if(!box) return; const g=post.group;
-  if(!g){ box.innerHTML='<div class="next-note">Pick a group below to build a post — AI drafts the copy (from your DNA, the group, the tone slider and the image), you pick and post by hand.</div>'; return; }
+  const box=document.getElementById(post.mount||'postCockpit'); if(!box) return; const g=post.group;
+  // the composer lives in exactly one place at a time
+  const other=(post.mount==='runCockpit')?'postCockpit':'runCockpit';
+  const ob=document.getElementById(other);
+  if(ob) ob.innerHTML=(other==='postCockpit')?'<div class="next-note">Pick a group below to build a post — AI drafts the copy (from your DNA, the group, the tone slider and the image), you pick and post by hand.</div>':'';
+  if(!g){ box.innerHTML=(post.mount==='postCockpit')?'<div class="next-note">Pick a group below to build a post — AI drafts the copy (from your DNA, the group, the tone slider and the image), you pick and post by hand.</div>':''; return; }
   const st=postStatus(g), need=post.mode==='ab'?2:1;
   box.innerHTML=`<div class="card">
     <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px"><div><div class="kicker">${esc(g.area||'Group')}</div><h2>${esc(g.name)}</h2></div>
@@ -1287,7 +1315,7 @@ function renderPostCockpit(){
             <button class="btn-sm" data-pclock="${i}" style="margin-left:auto">${post.locked[i]?'🔒 Locked':'Lock'}</button>
             <button class="btn-sm ${pos>=0?'btn-post':''}" data-pcsel="${i}">${pos>=0?'Selected ✓':'Select'}</button></div>
             <textarea data-pctext="${i}">${esc(d)}</textarea></div>`; }).join('')}
-        ${post.loading?'':`<div class="dna-act" style="margin-top:4px"><button class="btn-sm" data-pc="remix">↻ Remix unlocked</button><button class="btn-sm" data-pc="copy">Copy ${post.mode==='ab'?'A + B':'post'}</button></div>`}
+        ${post.loading?'':`<div class="dna-act" style="margin-top:4px"><button class="btn-sm ${post.drafts.some(d=>d&&d.trim())?'':'btn-post'}" data-pc="remix">${post.drafts.some(d=>d&&d.trim())?'↻ Remix unlocked':'✨ Draft 3 with AI'}</button><button class="btn-sm" data-pc="copy">Copy ${post.mode==='ab'?'A + B':'post'}</button><button class="btn-sm" data-pc="pip" title="Always-on-top window with the copy, the group link and a Posted button">Paste window ⧉</button></div>`}
         <div class="section-label" style="margin:16px 0 8px">Image${need>1?'s — A / B':''} <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">· add one then Remix to write from it</span></div>
         <div style="display:flex;gap:14px;flex-wrap:wrap">${Array.from({length:need},(_,s)=>postImgSlot(s)).join('')}
           <div style="align-self:center"><button class="btn-sm" data-pc="createimg">Create new in Montage →</button></div></div>
@@ -1318,6 +1346,7 @@ function postCopy(){ const msg=document.getElementById('postSaveMsg');
 async function postPosted(){ const g=post.group, msg=document.getElementById('postSaveMsg'); if(!g) return;
   if(post.mode==='ab'&&post.selCopy.length<2){ msg.innerHTML='<div class="err">Pick two drafts (A and B) first.</div>'; return; }
   if(!post.selCopy.length){ msg.innerHTML='<div class="err">Select a draft first.</div>'; return; }
+  if(post.mode!=='ab'&&!selectedCopy().trim()){ msg.innerHTML='<div class="err">The selected draft is empty — write or draft the copy first.</div>'; return; }
   if(CAP-appPostsToday()<=0){ msg.innerHTML='<div class="err"><b>Blocked:</b> 12/12 cap reached — protect the account.</div>'; return; }
   if(cooldownLeft(g)>0){ msg.innerHTML=`<div class="err"><b>Blocked:</b> ${esc(g.name)} in cooldown (${cooldownLeft(g)} days left).</div>`; return; }
   if(!lockedToday(g)){ msg.innerHTML=`<div class="err"><b>Planning only:</b> ${esc(g.name)} isn’t scheduled to post today.</div>`; return; }
@@ -1327,14 +1356,19 @@ async function postPosted(){ const g=post.group, msg=document.getElementById('po
   else { variation='A'; content_hash=phash(post.drafts[post.selCopy[0]]||''); }
   if(postPosted._busy) return; postPosted._busy=true;
   try{
-    const sp=schedFor(g);
+    const sp=post.sched||schedFor(g);
+    if(sp&&post.mode!=='ab') await rpSaveContent(sp, selectedCopy());   // the logged job keeps its final copy
     const compIds=post.images.filter(im=>im&&im.id).map(im=>im.id);
     const { data:logged, error }=await c.rpc('log_posted',{ p_group_id:g.id, p_group_name:g.name, p_variation:variation, p_content_hash:content_hash, p_image_ref:image_ref, p_account:state.account, p_scheduled_id:sp?sp.id:null, p_composition_ids:compIds.length?compIds:null });
     if(error) throw error;
     state.posts.push(logged||{ group_id:g.id, posted_on:todayStr(), source:'app' });
     if(sp) sp.status='posted';
     for(const im of post.images){ if(im&&im.id) im.use_count=(im.use_count||0)+1; }
-    renderCapMeter(); renderDash(); renderPlan(); renderRun(); renderSchedules(); renderPostBrowser();
+    renderCapMeter(); renderDash(); renderPlan(); renderSchedules(); renderPostBrowser();
+    if(post.mount==='runCockpit'){   // in the Run: log → advance to the next safe group
+      post.group=null; postReset(); renderRun(); showToast(`Logged ✓ to ${g.name}`); return;
+    }
+    renderRun();
     const nxt=nextSafeGroup(g.id);
     msg.innerHTML=`<div class="banner ok" style="margin:0">Logged ✓ to <b>${esc(g.name)}</b> — ${CAP-appPostsToday()} of ${CAP} left today.`+(nxt?` <button class="btn-sm" id="pcNext" style="margin-left:8px">Next: ${esc(nxt.name)} →</button>`:' No more safe-today groups.')+`</div>`;
     const nb=document.getElementById('pcNext'); if(nb) nb.onclick=()=>openCockpit(nxt.id);
@@ -1342,8 +1376,11 @@ async function postPosted(){ const g=post.group, msg=document.getElementById('po
   }catch(err){ msg.innerHTML='<div class="err"><b>Couldn’t log it:</b> '+esc(err.message||'insert failed')+'</div>'; }
   finally{ postPosted._busy=false; }
 }
-function wirePostCockpit(){ const box=document.getElementById('postCockpit'), g=post.group; if(!box||!g) return;
-  box.querySelectorAll('[data-pctext]').forEach(t=>t.addEventListener('input',()=>{ post.drafts[+t.dataset.pctext]=t.value; }));
+function wirePostCockpit(){ const box=document.getElementById(post.mount||'postCockpit'), g=post.group; if(!box||!g) return;
+  box.querySelectorAll('[data-pctext]').forEach(t=>{
+    t.addEventListener('input',()=>{ post.drafts[+t.dataset.pctext]=t.value; });
+    t.addEventListener('change',()=>{ if(post.sched) rpSaveContent(post.sched, selectedCopy()); });   // persist to the queue job
+  });
   box.querySelectorAll('[data-pcmode]').forEach(b=>b.addEventListener('click',()=>{ if(post.mode!==b.dataset.pcmode){ post.mode=b.dataset.pcmode; post.selCopy=[]; renderPostCockpit(); } }));
   box.querySelectorAll('[data-pclock]').forEach(b=>b.addEventListener('click',()=>{ post.locked[+b.dataset.pclock]=!post.locked[+b.dataset.pclock]; renderPostCockpit(); }));
   box.querySelectorAll('[data-pcsel]').forEach(b=>b.addEventListener('click',()=>postSelect(+b.dataset.pcsel)));
@@ -1351,15 +1388,28 @@ function wirePostCockpit(){ const box=document.getElementById('postCockpit'), g=
   box.querySelectorAll('[data-pcimgx]').forEach(b=>b.addEventListener('click',()=>{ post.images[+b.dataset.pcimgx]=null; renderPostCockpit(); }));
   box.querySelectorAll('[data-pc]').forEach(b=>b.addEventListener('click',()=>{ const a=b.dataset.pc;
     if(a==='details') openGroup(g.id); else if(a==='remix') loadPostDrafts(g,true); else if(a==='copy') postCopy();
-    else if(a==='posted') postPosted(); else if(a==='createimg') showTab('Montage'); }));
+    else if(a==='posted') postPosted(); else if(a==='createimg') showTab('Montage');
+    else if(a==='pip') openComposerPaste(); }));
   const tone=document.getElementById('pcTone');
   if(tone){ tone.addEventListener('input',()=>{ const l=document.getElementById('pcToneLab'); if(l) l.textContent=postToneLabel(tone.value); });
     tone.addEventListener('change',async()=>{ g.tone=+tone.value; try{ const c=client(); if(c) await c.from('groups').update({tone:g.tone}).eq('id',g.id); }catch(e){} showToast('Tone saved — Remix to apply'); }); }
   const themeSel=document.getElementById('pcTheme');
   if(themeSel) themeSel.addEventListener('change',()=>{ post.themeId=themeSel.value; showToast(post.themeId?'Theme set — Remix to apply':'Theme cleared'); });
 }
-function openCockpit(id){ const g=state.groups.find(x=>x.id===id); if(!g) return; post.group=g; postReset(); renderPostCockpit();
-  if(state.tab==='Post'){ loadPostDrafts(g,false); const c=document.getElementById('postCockpit'); if(c) c.scrollIntoView({behavior:'smooth',block:'start'}); } }
+function openCockpit(id){ const g=state.groups.find(x=>x.id===id); if(!g) return;
+  post.group=g; postReset(); post.mount='postCockpit';
+  const preloaded=postPreloadSched(g);
+  renderPostCockpit();
+  if(state.tab==='Post'){ if(!preloaded) loadPostDrafts(g,false); const c=document.getElementById('postCockpit'); if(c) c.scrollIntoView({behavior:'smooth',block:'start'}); } }
+function openComposerForJob(s){ // from a Plan queue card: full composer on that job
+  const g=state.groups.find(x=>x.id===s.group_id); if(!g){ showToast('Group not found'); return; }
+  showTab('Post');
+  post.group=g; postReset(); post.mount='postCockpit'; post.sched=s;
+  if(s.content){ post.drafts=[s.content,'','']; post.locked=[true,false,false]; post.selCopy=[0]; }
+  renderPostCockpit();
+  if(!s.content) loadPostDrafts(g,false);
+  const c=document.getElementById('postCockpit'); if(c) c.scrollIntoView({behavior:'smooth',block:'start'});
+}
 function renderPostBrowser(){
   const box=document.getElementById('postBrowser'); if(!box) return;
   const q=(document.getElementById('postSearch').value||'').toLowerCase().trim();
@@ -2480,14 +2530,17 @@ async function confirmBulk(){
 (function(){ const b=document.getElementById('bulkParse'); if(b) b.addEventListener('click',parseBulk); })();
 
 /* ---- Today's Run (guided paste queue with AI drafts) ---- */
-const run={ queue:[], i:0, drafts:[], locked:[], mode:'post', sel:[], loading:false };
+/* The Run is now a thin queue around THE COMPOSER (see Sprint 3 note above):
+   it decides which group is next and shows its rules; all drafting, previewing,
+   image-attaching and logging happens in the same composer as the Post tab. */
+const run={ queue:[], i:0 };
 const RUN_TIER={green:0,amber:1,red:2};
 function runPool(){ return state.groups.filter(g=>lockedToday(g)&&cooldownOk(g))
   .sort((a,b)=>(RUN_TIER[a.tier]-RUN_TIER[b.tier])||((b.fb_views||0)-(a.fb_views||0))); }
 function runQueue(){ // planned (from the Plan) first, then the rest of today's safe pool
   const safe=runPool(), sched=new Set(schedPendingToday().map(s=>s.group_id));
   return safe.filter(g=>sched.has(g.id)).concat(safe.filter(g=>!sched.has(g.id))); }
-function runReset(){ run.drafts=[]; run.locked=[]; run.sel=[]; run.mode='post'; run.loading=false; }
+function runReset(){ /* composer state resets when it remounts for the next group */ }
 function fallbackDrafts(g,n){ const v=VOICE(g.area); const out=[]; for(let i=0;i<n;i++) out.push(v[i%v.length]); return out; }
 async function runFetchDrafts(g,count,exclude,opts){
   opts=opts||{}; const c=client(); if(!c) return null;
@@ -2499,116 +2552,32 @@ async function runFetchDrafts(g,count,exclude,opts){
     return data.drafts;
   }catch(e){ return null; }
 }
-async function loadDrafts(g, remix){
-  run.loading=true; renderRun();
-  if(remix){
-    const idxs=run.drafts.map((_,i)=>i).filter(i=>!run.locked[i]); const need=idxs.length||run.drafts.length;
-    let fresh=await runFetchDrafts(g,need,run.drafts.filter((_,i)=>!run.locked[i])); run.usedFallback=!fresh; if(!fresh) fresh=fallbackDrafts(g,need);
-    let k=0; run.drafts=run.drafts.map((d,i)=>{ if(run.locked[i]) return d; const nd=fresh[k++]; return nd!=null?nd:d; });
-  } else {
-    let fresh=await runFetchDrafts(g,3,[]); run.usedFallback=!fresh; if(!fresh) fresh=fallbackDrafts(g,3);
-    run.drafts=fresh.slice(0,3); run.locked=run.drafts.map(()=>false); run.sel=[];
-  }
-  run.loading=false; renderRun();
-  if(run.usedFallback) warnFallback('runMsg');
-}
 function warnFallback(msgId){
   showToast('⚠ AI drafting unavailable — offline template copy loaded');
   const m=document.getElementById(msgId);
   if(m) m.innerHTML='<div class="err">⚠ <b>AI drafting unavailable</b> — these are offline template drafts, not written for this group. Edit before posting, and avoid posting the same template to several groups.</div>';
 }
-function runSelect(i){
-  const max=run.mode==='ab'?2:1, pos=run.sel.indexOf(i);
-  if(pos>=0) run.sel.splice(pos,1);
-  else { if(run.sel.length>=max) run.sel.shift(); run.sel.push(i); }
-  renderRun();
-}
 function runStepHtml(g){
   const rule=[(g.posting_days&&g.posting_days.length)?('Days — '+g.posting_days.join(', ')):'', g.official_rules, g.posting_note].filter(Boolean).join(' · ');
   const avoid=(g.avoid&&g.avoid.length)?g.avoid.join(', '):'';
-  const previewText=(run.sel.length?run.drafts[run.sel[0]]:run.drafts[0])||'Your post copy will appear here.';
-  return `<div class="card">
+  return `<div class="card" style="margin-bottom:14px">
     <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px">
       <div><div class="kicker">${esc(g.area||'Group')} · step ${run.i+1} of ${run.queue.length}</div><h2>${esc(g.name)}</h2></div>
       <span class="tchip ${g.tier}" style="margin-left:auto"><span class="dot ${g.tier}"></span>${g.tier}</span>${schedFor(g)?'<span class="tchip green" style="margin-left:6px"><span class="dot green"></span>planned</span>':''}</div>
-    <div class="run-inst" style="margin-bottom:14px">
+    <div class="run-inst" style="margin-bottom:12px">
       ${rule?`<div><b>Rules:</b> ${esc(rule)}</div>`:'<div class="muted">No posting rule set — add one in Audit for safer scheduling.</div>'}
       ${avoid?`<div style="color:var(--danger)"><b>Avoid:</b> ${esc(avoid)}</div>`:''}
     </div>
-    <div class="toolbar" style="margin-bottom:14px">
-      <button class="chip ${run.mode==='post'?'on':''}" data-rmode="post">Single post</button>
-      <button class="chip ${run.mode==='ab'?'on':''}" data-rmode="ab">A/B test</button>
-      <span class="muted" style="font-size:12px">${run.mode==='ab'?'Pick two — first is A, second is B. Facebook runs the test; we just prep both.':'Pick one draft.'}</span>
+    <div class="dna-act" style="flex-wrap:wrap">
+      ${g.url?`<a class="btn-sm" href="${esc(g.url)}" target="_blank" rel="noopener" style="text-decoration:none">Open group on Facebook ↗</a>`:`<span class="err" style="margin:0;padding:6px 10px">No link yet — add it in <b>Audit</b>.</span>`}
+      <button class="btn-sm" data-run="skip">Skip this group</button>
     </div>
-    <div class="run-two">
-      <div>
-        ${run.loading?'<div class="loading">Drafting with AI…</div>':run.drafts.map((d,i)=>{
-          const pos=run.sel.indexOf(i), abLab=(run.mode==='ab'&&pos>=0)?' · '+['A','B'][pos]:'';
-          return `<div class="rd ${pos>=0?'sel':''}">
-            <div class="rd-h"><span class="rd-lab">Draft ${i+1}${abLab}</span>
-              <button class="btn-sm" data-rlock="${i}" style="margin-left:auto">${run.locked[i]?'🔒 Locked':'Lock'}</button>
-              <button class="btn-sm ${pos>=0?'btn-post':''}" data-rsel="${i}">${pos>=0?'Selected ✓':'Select'}</button></div>
-            <textarea data-rtext="${i}" placeholder="Write your own copy, or hit ✨ Draft 3 with AI to fill all three.">${esc(d)}</textarea></div>`; }).join('')}
-        ${run.loading?'':`<div class="dna-act" style="margin-top:4px"><button class="btn-sm ${run.drafts.some(d=>d&&d.trim())?'':'btn-post'}" data-run="remix">${run.drafts.some(d=>d&&d.trim())?'↻ Remix unlocked':'✨ Draft 3 with AI'}</button><button class="btn-sm" data-run="copy">Copy ${run.mode==='ab'?'A + B':'post'}</button></div>`}
-      </div>
-      <div>
-        <div class="section-label" style="margin:0 0 8px">Preview — how it'll look</div>
-        <div class="fbcard">
-          <div class="fbcard-h"><div class="fbcard-av">S</div><div><div class="fbcard-nm">Sturij</div><div class="fbcard-meta">Just now · 🌐</div></div></div>
-          <div class="fbcard-body">${esc(previewText)}</div>
-          <div class="fbcard-img">image / montage — add in Phase 3</div>
-          <div class="fbcard-act"><span>👍 Like</span><span>💬 Comment</span><span>↪ Share</span></div>
-        </div>
-        <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
-          ${g.url?`<a class="btn-sm" href="${esc(g.url)}" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">Open group on Facebook ↗</a>`:`<div class="err" style="margin:0">No link yet — add it in <b>Audit</b> to jump straight to the group.</div>`}
-          <button class="btn btn-pri" data-run="posted" style="height:44px">Posted ✓ — next</button>
-          <button class="btn-sm" data-run="skip">Skip this group</button>
-        </div>
-      </div>
-    </div>
-    <div id="runMsg" style="margin-top:12px"></div>
-  </div>`;
+  </div>
+  <div id="runCockpit"></div>`;
 }
 function wireRunStep(g){
   const box=document.getElementById('runBody'); if(!box) return;
-  box.querySelectorAll('[data-rtext]').forEach(t=>t.addEventListener('input',()=>{ run.drafts[+t.dataset.rtext]=t.value; }));
-  box.querySelectorAll('[data-rmode]').forEach(b=>b.addEventListener('click',()=>{ if(run.mode!==b.dataset.rmode){ run.mode=b.dataset.rmode; run.sel=[]; renderRun(); } }));
-  box.querySelectorAll('[data-rlock]').forEach(b=>b.addEventListener('click',()=>{ const i=+b.dataset.rlock; run.locked[i]=!run.locked[i]; renderRun(); }));
-  box.querySelectorAll('[data-rsel]').forEach(b=>b.addEventListener('click',()=>runSelect(+b.dataset.rsel)));
-  const remix=box.querySelector('[data-run="remix"]'); if(remix) remix.addEventListener('click',()=>loadDrafts(g,true));
-  const copy=box.querySelector('[data-run="copy"]'); if(copy) copy.addEventListener('click',runCopy);
-  const posted=box.querySelector('[data-run="posted"]'); if(posted) posted.addEventListener('click',()=>runPosted(g));
-  const skip=box.querySelector('[data-run="skip"]'); if(skip) skip.addEventListener('click',()=>{ run.i++; runReset(); renderRun(); });
-}
-function runCopy(){
-  const msg=document.getElementById('runMsg');
-  if(run.mode==='ab'){ if(run.sel.length<2){ if(msg) msg.innerHTML='<div class="err">Pick two drafts for A/B.</div>'; return; }
-    navigator.clipboard.writeText(`A:\n${run.drafts[run.sel[0]]||''}\n\nB:\n${run.drafts[run.sel[1]]||''}`).then(()=>showToast('Copied A + B ✓')).catch(()=>{}); }
-  else { const i=run.sel.length?run.sel[0]:0; navigator.clipboard.writeText(run.drafts[i]||'').then(()=>showToast('Copied ✓')).catch(()=>{}); }
-}
-async function runPosted(g){
-  const msg=document.getElementById('runMsg');
-  if(run.mode==='ab' && run.sel.length<2){ msg.innerHTML='<div class="err">Pick two drafts (A and B) before logging.</div>'; return; }
-  const selIdx=run.sel.length?run.sel[0]:0;
-  if(run.mode!=='ab' && !(run.drafts[selIdx]||'').trim()){ msg.innerHTML='<div class="err">Write or draft the copy first — can’t log an empty post.</div>'; return; }
-  if(CAP-appPostsToday()<=0){ msg.innerHTML='<div class="err"><b>Blocked:</b> 12/12 cap reached — protect the account.</div>'; return; }
-  if(cooldownLeft(g)>0){ msg.innerHTML=`<div class="err"><b>Blocked:</b> ${esc(g.name)} is in cooldown (${cooldownLeft(g)} days left).</div>`; return; }
-  if(!lockedToday(g)){ msg.innerHTML=`<div class="err"><b>Planning only:</b> ${esc(g.name)} isn’t scheduled to post today.</div>`; return; }
-  const c=client(); if(!c){ msg.innerHTML='<div class="err">No database connection.</div>'; return; }
-  let variation, content_hash;
-  if(run.mode==='ab'){ variation='A/B'; content_hash=phash(run.drafts[run.sel[0]]||'')+'/'+phash(run.drafts[run.sel[1]]||''); }
-  else { const i=run.sel.length?run.sel[0]:0; variation='A'; content_hash=phash(run.drafts[i]||''); }
-  if(runPosted._busy) return; runPosted._busy=true;
-  try{
-    const sp=schedFor(g);
-    const { data:logged, error }=await c.rpc('log_posted',{ p_group_id:g.id, p_group_name:g.name, p_variation:variation, p_content_hash:content_hash, p_image_ref:null, p_account:state.account, p_scheduled_id:sp?sp.id:null, p_composition_ids:null });
-    if(error) throw error;
-    state.posts.push(logged||{ group_id:g.id, posted_on:todayStr(), source:'app' }); runReset();
-    if(sp) sp.status='posted';
-    renderCapMeter(); renderDash(); renderPlan(); renderPostBrowser(); renderRun(); renderSchedules();
-    showToast(`Logged ✓ to ${g.name}`);
-  }catch(err){ msg.innerHTML='<div class="err"><b>Couldn’t log it:</b> '+esc(err.message||'insert failed')+'</div>'; }
-  finally{ runPosted._busy=false; }
+  const skip=box.querySelector('[data-run="skip"]'); if(skip) skip.addEventListener('click',()=>{ run.i++; post.group=null; renderRun(); });
 }
 function renderRun(){
   const box=document.getElementById('runBody'), head=document.getElementById('runHead'); if(!box) return;
@@ -2619,8 +2588,14 @@ function renderRun(){
   if(!run.queue.length){ box.innerHTML='<div class="next-note">Nothing safe to post right now — every group is in cooldown or off its posting day. Add rules/links in <b>Audit</b>, or check the <b>Plan</b>.</div>'; return; }
   if(run.i>=run.queue.length) run.i=0;
   const g=run.queue[run.i];
-  if(!run.drafts.length && !run.loading){ run.drafts=['','','']; run.locked=[false,false,false]; run.sel=[]; }  // start empty — draft on demand
   box.innerHTML=runStepHtml(g); wireRunStep(g);
+  if(state.tab!=='Run'){ const rc=document.getElementById('runCockpit'); if(rc) rc.innerHTML='<div class="next-note">Open the Run tab to draft this one.</div>'; return; }
+  // mount THE COMPOSER on the current step
+  if(post.group!==g || post.mount!=='runCockpit'){
+    post.group=g; postReset(); post.mount='runCockpit';
+    if(!postPreloadSched(g)){ post.drafts=['','','']; post.locked=[false,false,false]; post.selCopy=[]; }  // start empty — draft on demand
+  }
+  renderPostCockpit();
 }
 
 /* ---- Scheduled posts (Plan -> Run carry-through) + dashboard tables (§3c) ---- */
@@ -2710,6 +2685,7 @@ function rpJobCard(s){
       <button class="btn-sm" data-rp="copy">Copy</button>
       ${g.url?`<a class="btn-sm" href="${esc(g.url)}" target="_blank" rel="noopener" style="text-decoration:none">Open group ↗</a>`:''}
       <button class="btn-sm" data-rp="pip">⇈ Paste window</button>
+      <button class="btn-sm" data-rp="composer" title="Tone, themes, images, A/B and preview — the full composer">Open in composer →</button>
       <button class="btn-sm btn-pri" data-rp="posted" style="margin-left:auto"${eligible?'':' disabled title="Not eligible today"'}>Posted ✓</button>
       <button class="btn-sm" data-rp="remove">Remove</button>
     </div>
@@ -2732,7 +2708,9 @@ function renderReadyToPost(){
   }).join('');
 }
 async function rpSaveContent(s,content){
-  const c=client(); if(!c) return; try{ await c.from('scheduled_posts').update({content}).eq('id',s.id); s.content=content; }catch(e){}
+  s.content=content;
+  if(!s.id) return;                       // ad-hoc paste-window jobs aren't queue rows
+  const c=client(); if(!c) return; try{ await c.from('scheduled_posts').update({content}).eq('id',s.id); }catch(e){}
 }
 async function rpDraft(s,card){
   const g=state.groups.find(x=>x.id===s.group_id); if(!g){ showToast('Group not found'); return; }
@@ -2753,10 +2731,10 @@ async function rpPosted(s){
   if(!content.trim()){ showToast('Write or draft the copy first — can’t log an empty post.'); return false; }
   if(rpPosted._busy) return false; rpPosted._busy=true;
   try{
-    const { data:logged, error }=await c.rpc('log_posted',{ p_group_id:g.id, p_group_name:g.name, p_variation:'A', p_content_hash:phash(content), p_image_ref:s.image_ref||null, p_account:state.account, p_scheduled_id:s.id, p_composition_ids:s.composition_id?[s.composition_id]:null });
+    const { data:logged, error }=await c.rpc('log_posted',{ p_group_id:g.id, p_group_name:g.name, p_variation:'A', p_content_hash:phash(content), p_image_ref:s.image_ref||null, p_account:state.account, p_scheduled_id:s.id||null, p_composition_ids:s.composition_id?[s.composition_id]:null });
     if(error) throw error;
     state.posts.push(logged||{ group_id:g.id, posted_on:todayStr(), source:'app' });
-    s.status='posted';
+    if(s.id) s.status='posted';
     renderCapMeter(); renderDash(); renderPlan(); renderPostBrowser(); renderRun(); renderSchedules();
     showToast(`Logged ✓ to ${g.name}`); return true;
   }catch(err){ showToast('Couldn’t log it — '+(err.message||'refused')); return false; }
@@ -2807,6 +2785,7 @@ async function openPasteWindow(s){
     if(act==='draft'){ await rpDraft(s,card); return; }
     if(act==='copy'){ navigator.clipboard.writeText(ta?ta.value:'').then(()=>showToast('Copied ✓')).catch(()=>{}); return; }
     if(act==='pip'){ openPasteWindow(s); return; }
+    if(act==='composer'){ openComposerForJob(s); return; }
     if(act==='posted'){ await rpPosted(s); return; }
     if(act==='remove'){ await removeSchedule(s.id); return; }
   });
